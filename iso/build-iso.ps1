@@ -12,6 +12,17 @@ $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $OutDir = Join-Path $PSScriptRoot "out"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
+# Fail fast (before a 10-15 min container build) if a prior ISO is still
+# open elsewhere - most commonly a VM still attached to it as a CD-ROM.
+Get-ChildItem -Path $OutDir -Filter "*.iso" -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+        Remove-Item -Path $_.FullName -Force -ErrorAction Stop
+    } catch {
+        Write-Error "Cannot remove existing $($_.FullName) - it's likely still open (e.g. attached to a running VM). Detach/power off the VM using it and try again."
+        exit 1
+    }
+}
+
 $machineState = (podman machine list --format json | ConvertFrom-Json)
 if (-not ($machineState | Where-Object { $_.Running })) {
     Write-Output "Starting podman machine..."
