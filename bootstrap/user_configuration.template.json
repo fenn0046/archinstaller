@@ -34,7 +34,7 @@
             "status": "create",
             "type": "primary",
             "start": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": 1025 },
-            "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "Percent", "value": 100 },
+            "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": "__ROOT_SIZE_MIB__" },
             "fs_type": "btrfs",
             "mountpoint": null,
             "dev_path": null,

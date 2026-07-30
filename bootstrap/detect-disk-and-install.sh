@@ -40,7 +40,22 @@ if [ "$CONFIRM" != "$TARGET_DISK" ]; then
   exit 1
 fi
 
-sed "s#__DISK_DEVICE__#${TARGET_DISK}#" "$TEMPLATE" > "$OUT_CONFIG"
+# The installed archinstall's Unit enum has no "Percent" - the root
+# partition's size must be an absolute value, computed from the real disk
+# size minus the boot partition (1025 MiB) and a small safety margin for
+# GPT's backup header/alignment.
+DISK_BYTES=$(blockdev --getsize64 "$TARGET_DISK")
+DISK_MIB=$(( DISK_BYTES / 1048576 ))
+ROOT_SIZE_MIB=$(( DISK_MIB - 1025 - 4 ))
+
+if [ "$ROOT_SIZE_MIB" -lt 1024 ]; then
+  echo "Disk too small (${DISK_MIB} MiB) for this partition layout." >&2
+  exit 1
+fi
+
+sed -e "s#__DISK_DEVICE__#${TARGET_DISK}#" \
+    -e "s/\"__ROOT_SIZE_MIB__\"/${ROOT_SIZE_MIB}/" \
+    "$TEMPLATE" > "$OUT_CONFIG"
 
 archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
 
