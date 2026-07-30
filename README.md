@@ -26,8 +26,18 @@ base and cutting-edge/experimental packages that are okay to break.
 
 ## Fully unattended install (disk -> finished desktop, zero prompts)
 
-See [`bootstrap/README.md`](bootstrap/README.md). Boot the Arch ISO, run one
-script, and the machine partitions itself (Btrfs + subvolumes), installs the
+Two flavors, same underlying `archinstall` config and first-boot Ansible
+handoff:
+
+- [`bootstrap/README.md`](bootstrap/README.md) - boot the official Arch ISO,
+  clone this repo, run one script. Has a typed confirmation before the disk
+  gets wiped. Use this when you're supervising the install.
+- [`iso/README.md`](iso/README.md) - a custom-built ISO with everything baked
+  in, including credentials. Boot it and walk away - genuinely zero input,
+  including no confirmation before the disk is wiped. Use this only on a
+  machine/VM you specifically intend to wipe.
+
+Either way, the machine partitions itself (Btrfs + subvolumes), installs the
 base OS unattended via `archinstall`'s JSON config mode, reboots, and
 automatically clones + runs this Ansible playbook on first boot with no
 further input. This is the intended way to (re)build the machine from
@@ -74,7 +84,8 @@ ansible-playbook site.yml --ask-become-pass
 ## Structure
 
 ```
-bootstrap/             # unattended OS install: archinstall config + disk-detect script
+bootstrap/             # supervised unattended install: archinstall config + disk-detect script
+iso/                   # fully baked, zero-input custom ISO build (Podman-based)
 site.yml               # main playbook, role order
 group_vars/all.yml     # all tunables: desktop choice, package lists, toggles
 roles/

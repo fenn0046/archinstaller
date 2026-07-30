@@ -43,3 +43,9 @@ fi
 sed "s#__DISK_DEVICE__#${TARGET_DISK}#" "$TEMPLATE" > "$OUT_CONFIG"
 
 archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
+
+# --silent explicitly skips archinstall's own "reboot now?" prompt (it just
+# returns control to this shell when done), so we do it ourselves.
+echo "Install complete. Rebooting in 5 seconds..."
+sleep 5
+reboot

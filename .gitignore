@@ -4,3 +4,6 @@
 
 # Real credentials - never commit password hashes. Keep only the .sample.json.
 bootstrap/user_credentials.json
+
+# ISO build output - large binaries, rebuildable from iso/build-iso.ps1
+iso/out/
