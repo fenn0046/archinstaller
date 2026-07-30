@@ -2,7 +2,11 @@
 # in. archiso (mkarchiso) needs real Arch package tooling that doesn't exist
 # on Windows, so this runs it inside a privileged archlinux container via
 # the Podman machine already set up on this box - no WSL Arch distro needed.
-$ErrorActionPreference = "Stop"
+#
+# Note: deliberately no $ErrorActionPreference = "Stop" here. Native tools
+# (podman, mkarchiso) write routine progress/warnings to stderr; PowerShell
+# would otherwise wrap that as a terminating NativeCommandError even on
+# success. Real failures are caught via explicit $LASTEXITCODE checks below.
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $OutDir = Join-Path $PSScriptRoot "out"
@@ -36,5 +40,10 @@ podman run --rm --privileged `
     -v "${RepoRoot}:/repo" `
     -w /repo `
     archlinux:latest bash -c $containerScript
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Build failed (exit $LASTEXITCODE) - see output above."
+    exit $LASTEXITCODE
+}
 
 Write-Output "Done. ISO written to $OutDir"
