@@ -24,6 +24,7 @@
             "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": 1024 },
             "fs_type": "fat32",
             "mountpoint": "/boot",
+            "dev_path": null,
             "mount_options": [],
             "flags": ["boot"],
             "btrfs": []
@@ -36,6 +37,7 @@
             "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "Percent", "value": 100 },
             "fs_type": "btrfs",
             "mountpoint": null,
+            "dev_path": null,
             "mount_options": ["compress=zstd", "noatime"],
             "flags": [],
             "btrfs": [
