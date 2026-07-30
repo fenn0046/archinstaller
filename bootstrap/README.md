@@ -27,35 +27,29 @@ ever pointing it at real hardware.
    may have multiple), asks you to type the device path back as confirmation
    (since `--silent` skips archinstall's own confirmation prompt), patches it
    into the template, and launches the unattended install.
-4. `user_credentials.sample.json` - copy this to `user_credentials.json`
-   (gitignored - never commit real password hashes) and fill in real hashes.
+4. `make-credentials.sh` - interactively generates `user_credentials.json`
+   (gitignored - never commit real password hashes). `user_credentials.sample.json`
+   documents the shape of that file but isn't meant to be hand-edited.
 
-## One-time setup before first use
+**Repo URL is already set** in `user_configuration.template.json`
+(`https://github.com/fenn0046/archinstaller.git`) - only revisit that if the
+remote ever changes.
 
-**1. Repo URL is already set.** `user_configuration.template.json` points at
-`https://github.com/fenn0046/archinstaller.git` - update it if the remote
-ever changes.
+## Credentials are per-session, not one-time
 
-**2. Generate password hashes.** From any Linux machine (the Arch live ISO
-works fine - it has `openssl`):
-```
-openssl passwd -6
-```
-Run it once for the `archuser` account password and once for root, then
-paste the resulting hashes into `user_credentials.json`:
-```
-cp user_credentials.sample.json user_credentials.json
-# edit user_credentials.json, paste hashes in place of REPLACE_WITH_HASH
-```
+The live ISO's filesystem is RAM-backed and disappears on reboot, so
+`user_credentials.json` only exists inside that ephemeral clone of the repo.
+**You regenerate it every time you boot a fresh live ISO session** - it's not
+a setup step you do once and forget.
 
 ## Running it
 
 Boot the Arch ISO on your target VM/machine (make sure it's on the network),
-then, since the ISO has `git` available out of the box:
+then, since the ISO has `git` and `openssl` available out of the box:
 ```
 git clone https://github.com/fenn0046/archinstaller.git
 cd archinstaller/bootstrap
-cp user_credentials.sample.json user_credentials.json   # then fill in hashes
+./make-credentials.sh      # prompts for archuser + root passwords, hashes them
 ./detect-disk-and-install.sh
 ```
 
@@ -77,3 +71,7 @@ snapshots, etc.) has completed.
 - This assumes UEFI firmware (the boot partition is a FAT32 ESP mounted at
   `/boot`). Legacy BIOS boot would need a `bios_grub` partition instead -
   flag it if your target hardware/VM is BIOS-only.
+- `enc_password` just needs to be a hash `crypt(3)`/glibc understands -
+  confirmed against archinstall's `users.py` source, which stores whatever
+  string you give it verbatim. `openssl passwd -6` (sha512crypt) works exactly
+  as well as the yescrypt hashes archinstall's own TUI generates.
