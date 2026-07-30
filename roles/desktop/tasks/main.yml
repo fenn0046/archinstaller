@@ -10,3 +10,19 @@
     name: sddm
     enabled: true
   when: desktop_environment == 'kde'
+
+# Enabling sddm.service alone only makes it start once the system reaches
+# graphical.target - it doesn't change what target the system boots into.
+# archinstall's Minimal profile (used deliberately so Ansible owns the
+# desktop) leaves the default target at multi-user.target, so without this
+# the machine boots to a text console every time, with SDDM enabled but
+# never triggered.
+- name: Check current default systemd target
+  command: systemctl get-default
+  register: current_target
+  changed_when: false
+  when: desktop_environment == 'kde'
+
+- name: Set graphical.target as the default boot target
+  command: systemctl set-default graphical.target
+  when: desktop_environment == 'kde' and current_target.stdout.strip() != 'graphical.target'

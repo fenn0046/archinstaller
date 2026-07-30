@@ -14,6 +14,11 @@ desktop_environment: kde
 # after every run.
 reboot_after_provision: true
 
+# Only ever set true via -e from the iso/ baked-credential flow's first-boot
+# script - forces archuser/root to change password at next login, once
+# Ansible (and everything in it that runs as archuser) has already finished.
+force_password_expiry: false
+
 # --- AUR ---
 aur_helper: paru
 # AUR packages must be built as a normal user, never root. This is hardcoded

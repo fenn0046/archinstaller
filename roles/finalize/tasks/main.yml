@@ -1,4 +1,18 @@
 ---
+# Only used by the iso/ baked-credential flow (force_password_expiry=true
+# passed via -e), never the bootstrap/ manual flow where the user set a
+# real password themselves. Must run here, at the very end, not at install
+# time - archuser's password has to stay valid for every become_user:
+# archuser task earlier in this same playbook run (aur/gaming/experimental
+# roles) and for the first-boot service's own `sudo -u archuser git clone`.
+# Expiring it any earlier breaks all of that non-interactively.
+- name: Force password change on next login (baked-credential ISO flow only)
+  command: "chage -d 0 {{ item }}"
+  loop:
+    - "{{ aur_build_user }}"
+    - root
+  when: force_password_expiry | bool
+
 # A reboot is genuinely needed here, not just tidy: the GPU driver (Nvidia
 # especially) wants a fresh boot to load correctly, and SDDM was only
 # enabled (starts on next boot) rather than started. Doing it automatically
