@@ -1,0 +1,37 @@
+---
+- name: Sync pacman package databases
+  pacman:
+    update_cache: true
+
+- name: Install base packages
+  pacman:
+    name: "{{ base_packages }}"
+    state: present
+
+- name: Enable NetworkManager
+  systemd:
+    name: NetworkManager
+    enabled: true
+    state: started
+
+- name: Enable reflector timer (keeps mirrorlist fast/current)
+  systemd:
+    name: reflector.timer
+    enabled: true
+    state: started
+
+# --- Kernel fallback: the core of the "hedge" ---
+# `linux` stays the default, cutting-edge kernel. Installing linux-lts
+# alongside it means a broken kernel/module update on the default kernel
+# still leaves a bootable, working entry in the boot menu.
+- name: Install LTS kernel as a fallback boot option
+  pacman:
+    name:
+      - linux-lts
+      - linux-lts-headers
+    state: present
+  when: kernel_lts_fallback | bool
+  notify: regenerate grub config
+
+- name: Flush handlers so GRUB picks up the new kernel entry now
+  meta: flush_handlers

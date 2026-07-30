@@ -1,0 +1,31 @@
+---
+- name: Ensure build tooling is present
+  pacman:
+    name: [base-devel, git]
+    state: present
+
+- name: Check whether paru is already installed
+  command: which paru
+  register: paru_check
+  failed_when: false
+  changed_when: false
+
+# AUR packages must be built as a normal user - makepkg refuses to run as
+# root. The build user needs passwordless sudo for this to work
+# non-interactively (see README "AUR / sudoers" section).
+- name: Build and install paru from the AUR
+  when: aur_helper == 'paru' and paru_check.rc != 0
+  become: true
+  become_user: "{{ aur_build_user }}"
+  block:
+    - name: Clone paru-bin
+      git:
+        repo: https://aur.archlinux.org/paru-bin.git
+        dest: /tmp/paru-bin
+        force: true
+
+    - name: Build and install paru-bin
+      command: makepkg -si --noconfirm
+      args:
+        chdir: /tmp/paru-bin
+        creates: /usr/bin/paru

@@ -1,0 +1,17 @@
+---
+- name: Skip dotfiles (no repo configured)
+  debug:
+    msg: "dotfiles_repo is empty in group_vars/all.yml - set it to a git URL to enable this role."
+  when: dotfiles_repo | length == 0
+
+- name: Install chezmoi
+  pacman:
+    name: chezmoi
+    state: present
+  when: dotfiles_method == 'chezmoi' and dotfiles_repo | length > 0
+
+- name: Apply dotfiles via chezmoi
+  become: true
+  become_user: "{{ aur_build_user }}"
+  command: "chezmoi init --apply {{ dotfiles_repo }}"
+  when: dotfiles_method == 'chezmoi' and dotfiles_repo | length > 0

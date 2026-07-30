@@ -1,0 +1,6 @@
+*.retry
+.vault_pass
+*.log
+
+# Real credentials - never commit password hashes. Keep only the .sample.json.
+bootstrap/user_credentials.json

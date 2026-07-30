@@ -1,0 +1,80 @@
+---
+# --- Boot resilience (the "hedge" between cutting-edge and stable) ---
+# Keep linux-lts installed alongside the default `linux` kernel so a bad
+# kernel update still leaves a bootable fallback in the GRUB menu.
+kernel_lts_fallback: true
+bootloader: grub   # grub | systemd-boot
+
+# --- Desktop ---
+desktop_environment: kde
+
+# --- AUR ---
+aur_helper: paru
+# AUR packages must be built as a normal user, never root. This is hardcoded
+# (rather than auto-detected from $SUDO_USER) because the unattended first-boot
+# bootstrap service runs ansible-playbook directly as root with no invoking
+# sudo user to detect - see bootstrap/README for that flow.
+aur_build_user: archuser
+
+# --- Dotfiles ---
+# Leave dotfiles_repo empty to skip the dotfiles role entirely.
+dotfiles_repo: ""
+dotfiles_method: chezmoi   # chezmoi | stow
+
+# --- Package sets ---
+base_packages:
+  - base-devel
+  - git
+  - networkmanager
+  - reflector
+  - btrfs-progs
+  - pciutils        # provides lspci, needed by roles/gpu's detection
+  - man-db
+  - man-pages
+  - vim
+  - htop
+  - fastfetch       # neofetch is archived/unmaintained upstream
+  # PipeWire audio stack is installed by archinstall's audio_config at OS-install
+  # time (see bootstrap/user_configuration.template.json) - not duplicated here.
+
+desktop_packages_kde:
+  - plasma-meta
+  - sddm
+  - dolphin
+  - konsole
+  - kate
+  - ark
+  - spectacle
+  - gwenview
+  - okular
+  - noto-fonts
+  - noto-fonts-emoji
+  - ttf-firacode-nerd
+
+everyday_apps:
+  - firefox
+  - vlc
+  - libreoffice-fresh
+  - keepassxc
+  - syncthing
+  - flatpak         # fallback for GUI apps that are awkward via pacman/AUR
+
+# --- Gaming (needs multilib repo, handled by roles/gaming) ---
+enable_gaming: true
+gaming_packages:
+  - steam
+  - gamemode
+  - lib32-gamemode
+  - mangohud
+  - lib32-mangohud
+
+# --- Experimental / cutting-edge opt-in packages ---
+# Off by default. Flip this on once the stable base is confirmed working,
+# then use this list as the sandbox for things that are "okay to break".
+enable_experimental: false
+experimental_packages:
+  - kvantum                # Qt/KDE theming engine, deep customization
+  - btrfs-assistant-git     # GUI for browsing/restoring snapper snapshots
+  - distrobox               # disposable containers for trying tools without touching the host
+  - starship                # cross-shell prompt, easy visual win
+  - fish

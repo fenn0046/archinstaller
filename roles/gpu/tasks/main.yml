@@ -1,0 +1,72 @@
+---
+# GPU vendor isn't known ahead of time (VM now, real hardware later), so
+# detect it at run time instead of hardcoding a variable per deploy.
+- name: Detect GPU controller via lspci
+  shell: lspci -nnk | grep -Ei 'VGA|3D controller'
+  register: gpu_lspci
+  changed_when: false
+  failed_when: false
+
+- name: Set gpu_vendor fact
+  set_fact:
+    gpu_vendor: >-
+      {{ 'nvidia' if 'NVIDIA' in gpu_lspci.stdout
+         else 'amd' if ('AMD' in gpu_lspci.stdout or 'ATI' in gpu_lspci.stdout)
+         else 'intel' if 'Intel' in gpu_lspci.stdout
+         else 'virtio' if ('Red Hat' in gpu_lspci.stdout or 'QXL' in gpu_lspci.stdout or 'VirtIO' in gpu_lspci.stdout)
+         else 'vmware' if 'VMware' in gpu_lspci.stdout
+         else 'virtualbox' if 'VirtualBox' in gpu_lspci.stdout
+         else 'unknown' }}
+
+- name: Report detected GPU vendor
+  debug:
+    msg: "Detected GPU vendor: {{ gpu_vendor }}"
+
+- name: Install AMD driver stack
+  pacman:
+    name: [mesa, vulkan-radeon, xf86-video-amdgpu]
+    state: present
+  when: gpu_vendor == 'amd'
+
+- name: Install Intel driver stack
+  pacman:
+    name: [mesa, vulkan-intel]
+    state: present
+  when: gpu_vendor == 'intel'
+
+- name: Install Nvidia proprietary driver stack
+  pacman:
+    name: [nvidia, nvidia-utils, nvidia-settings]
+    state: present
+  when: gpu_vendor == 'nvidia'
+
+# QEMU/KVM with the virtio-gpu or QXL device (most common for VM testing).
+- name: Install virtio/QEMU guest stack
+  pacman:
+    name: [mesa, qemu-guest-agent, spice-vdagent]
+    state: present
+  when: gpu_vendor == 'virtio'
+
+- name: Enable qemu-guest-agent
+  systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+  when: gpu_vendor == 'virtio'
+
+- name: Install VMware guest stack
+  pacman:
+    name: [mesa, xf86-video-vmware, open-vm-tools]
+    state: present
+  when: gpu_vendor == 'vmware'
+
+- name: Install VirtualBox guest stack
+  pacman:
+    name: [mesa, virtualbox-guest-utils]
+    state: present
+  when: gpu_vendor == 'virtualbox'
+
+- name: Warn on unrecognized GPU
+  debug:
+    msg: "Could not identify GPU from lspci output - install a driver manually and extend this role."
+  when: gpu_vendor == 'unknown'

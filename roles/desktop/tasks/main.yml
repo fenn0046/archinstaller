@@ -1,0 +1,12 @@
+---
+- name: Install KDE Plasma packages
+  pacman:
+    name: "{{ desktop_packages_kde }}"
+    state: present
+  when: desktop_environment == 'kde'
+
+- name: Enable SDDM display manager
+  systemd:
+    name: sddm
+    enabled: true
+  when: desktop_environment == 'kde'

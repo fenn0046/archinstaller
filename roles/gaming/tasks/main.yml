@@ -1,0 +1,27 @@
+---
+- name: Skip gaming setup (disabled)
+  debug:
+    msg: "enable_gaming is false in group_vars/all.yml - flip it on to install Steam/gamemode/mangohud."
+  when: not enable_gaming
+
+# Steam and 32-bit libraries live in the multilib repo, which Arch ships
+# commented out by default.
+- name: Enable multilib repository
+  ini_file:
+    path: /etc/pacman.conf
+    section: multilib
+    option: Include
+    value: /etc/pacman.d/mirrorlist
+  when: enable_gaming | bool
+  register: multilib_enabled
+
+- name: Sync package databases after enabling multilib
+  pacman:
+    update_cache: true
+  when: multilib_enabled.changed | default(false)
+
+- name: Install gaming packages
+  pacman:
+    name: "{{ gaming_packages }}"
+    state: present
+  when: enable_gaming | bool

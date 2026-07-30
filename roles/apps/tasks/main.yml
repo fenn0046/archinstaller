@@ -1,0 +1,5 @@
+---
+- name: Install everyday applications
+  pacman:
+    name: "{{ everyday_apps }}"
+    state: present

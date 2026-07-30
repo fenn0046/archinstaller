@@ -1,0 +1,47 @@
+---
+# Snapshot-based rollback is the real safety net for a cutting-edge system:
+# if an update breaks something, boot the previous snapshot from the GRUB
+# menu instead of hunting for a fix. Requires the root filesystem to be
+# Btrfs (set that up in archinstall/partitioning before running this repo).
+- name: Determine root filesystem type
+  set_fact:
+    root_is_btrfs: "{{ (ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='fstype') | first | default('')) == 'btrfs' }}"
+
+- name: Skip snapshot setup (root is not Btrfs)
+  debug:
+    msg: >-
+      Root filesystem is not Btrfs, skipping snapper/grub-btrfs.
+      Reinstall with a Btrfs root subvolume layout to get rollback-on-breakage.
+  when: not root_is_btrfs
+
+- name: Install snapshot tooling
+  pacman:
+    name:
+      - snapper
+      - snap-pac
+      - grub-btrfs
+    state: present
+  when: root_is_btrfs
+
+- name: Create snapper config for root
+  command: snapper -c root create-config /
+  args:
+    creates: /etc/snapper/configs/root
+  when: root_is_btrfs
+
+- name: Enable snapper timeline and cleanup timers
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - snapper-timeline.timer
+    - snapper-cleanup.timer
+  when: root_is_btrfs
+
+- name: Enable grub-btrfs regeneration service
+  systemd:
+    name: grub-btrfsd
+    enabled: true
+    state: started
+  when: root_is_btrfs and bootloader == 'grub'

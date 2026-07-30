@@ -1,0 +1,15 @@
+---
+# The opt-in sandbox for cutting-edge/fun packages. Leave disabled until the
+# stable base (kernel fallback + snapshots) is confirmed working, since this
+# is where things are expected to occasionally break.
+- name: Skip experimental packages (disabled)
+  debug:
+    msg: "enable_experimental is false in group_vars/all.yml - flip it on to install experimental_packages."
+  when: not enable_experimental
+
+- name: Install experimental packages via AUR helper
+  become: true
+  become_user: "{{ aur_build_user }}"
+  command: "{{ aur_helper }} -S --noconfirm --needed {{ item }}"
+  loop: "{{ experimental_packages }}"
+  when: enable_experimental | bool

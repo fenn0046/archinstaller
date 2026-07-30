@@ -1,0 +1,16 @@
+---
+- name: Provision Arch into a working desktop
+  hosts: arch
+  become: true
+  vars_files:
+    - group_vars/all.yml
+  roles:
+    - { role: base, tags: [base] }
+    - { role: snapshots, tags: [snapshots] }
+    - { role: gpu, tags: [gpu] }
+    - { role: aur, tags: [aur] }
+    - { role: desktop, tags: [desktop] }
+    - { role: apps, tags: [apps] }
+    - { role: gaming, tags: [gaming] }
+    - { role: dotfiles, tags: [dotfiles] }
+    - { role: experimental, tags: [experimental] }

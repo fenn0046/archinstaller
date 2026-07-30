@@ -1,0 +1,90 @@
+{
+  "archinstall-language": "English",
+  "audio_config": {
+    "audio": "pipewire"
+  },
+  "bootloader_config": {
+    "bootloader": "Grub",
+    "uki": false,
+    "removable": false
+  },
+  "debug": false,
+  "disk_config": {
+    "config_type": "default_layout",
+    "device_modifications": [
+      {
+        "device": "__DISK_DEVICE__",
+        "wipe": true,
+        "partitions": [
+          {
+            "obj_id": "6e910b84-af6d-44e0-ad33-eafa1cf98dc4",
+            "status": "create",
+            "type": "primary",
+            "start": { "sector_size": null, "unit": "MiB", "value": 1 },
+            "size": { "sector_size": null, "unit": "MiB", "value": 1024 },
+            "fs_type": "fat32",
+            "mountpoint": "/boot",
+            "mount_options": [],
+            "flags": ["boot"],
+            "btrfs": []
+          },
+          {
+            "obj_id": "90260684-74fb-4290-9cc2-9c18d3d0c013",
+            "status": "create",
+            "type": "primary",
+            "start": { "sector_size": null, "unit": "MiB", "value": 1025 },
+            "size": { "sector_size": null, "unit": "Percent", "value": 100 },
+            "fs_type": "btrfs",
+            "mountpoint": null,
+            "mount_options": ["compress=zstd", "noatime"],
+            "flags": [],
+            "btrfs": [
+              { "name": "@", "mountpoint": "/" },
+              { "name": "@home", "mountpoint": "/home" },
+              { "name": "@log", "mountpoint": "/var/log" },
+              { "name": "@pkg", "mountpoint": "/var/cache/pacman/pkg" },
+              { "name": "@.snapshots", "mountpoint": "/.snapshots" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "hostname": "archbox",
+  "kernels": ["linux"],
+  "locale_config": {
+    "kb_layout": "us",
+    "sys_enc": "UTF-8",
+    "sys_lang": "en_CA"
+  },
+  "network_config": {
+    "type": "nm"
+  },
+  "no_pkg_lookups": false,
+  "ntp": true,
+  "offline": false,
+  "packages": ["ansible", "git"],
+  "pacman_config": {
+    "color": false,
+    "parallel_downloads": 5
+  },
+  "profile_config": {
+    "gfx_driver": null,
+    "greeter": null,
+    "profile": {
+      "main": "Minimal",
+      "details": []
+    }
+  },
+  "script": "guided",
+  "silent": true,
+  "swap": {
+    "enabled": true,
+    "algorithm": "zstd"
+  },
+  "timezone": "America/Toronto",
+  "version": "2.8.6",
+  "custom_commands": [
+    "cat > /usr/local/bin/arch-project-bootstrap.sh << 'BOOTSTRAP_EOF'\n#!/bin/bash\nset -euo pipefail\nexec > >(tee -a /var/log/arch-project-bootstrap.log) 2>&1\necho \"[arch-project] first-boot bootstrap starting\"\nfor i in $(seq 1 30); do\n  curl -fsS --max-time 5 https://github.com >/dev/null 2>&1 && break\n  sleep 5\ndone\nREPO_URL=\"__ARCH_PROJECT_REPO_URL__\"\nDEST=/home/archuser/arch-project\nif [ -d \"$DEST/.git\" ]; then\n  sudo -u archuser git -C \"$DEST\" pull\nelse\n  sudo -u archuser git clone \"$REPO_URL\" \"$DEST\"\nfi\ncd \"$DEST\"\nansible-playbook site.yml\nsystemctl disable arch-project-bootstrap.service\necho \"[arch-project] bootstrap complete\"\nBOOTSTRAP_EOF\nchmod +x /usr/local/bin/arch-project-bootstrap.sh\ncat > /etc/systemd/system/arch-project-bootstrap.service << 'UNIT_EOF'\n[Unit]\nDescription=arch-project first-boot bootstrap\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/arch-project-bootstrap.sh\nRemainAfterExit=yes\nStandardOutput=journal+console\nStandardError=journal+console\n\n[Install]\nWantedBy=multi-user.target\nUNIT_EOF\nsystemctl enable arch-project-bootstrap.service"
+  ]
+}
