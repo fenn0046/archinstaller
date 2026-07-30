@@ -8,6 +8,12 @@ bootloader: grub   # grub | systemd-boot
 # --- Desktop ---
 desktop_environment: kde
 
+# Reboot automatically once provisioning finishes (needed for the GPU driver
+# to load and to actually start SDDM, which is only enabled, not started).
+# Set false if you're iterating on the playbook and don't want a reboot
+# after every run.
+reboot_after_provision: true
+
 # --- AUR ---
 aur_helper: paru
 # AUR packages must be built as a normal user, never root. This is hardcoded

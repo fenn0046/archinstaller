@@ -1,0 +1,10 @@
+---
+# A reboot is genuinely needed here, not just tidy: the GPU driver (Nvidia
+# especially) wants a fresh boot to load correctly, and SDDM was only
+# enabled (starts on next boot) rather than started. Doing it automatically
+# is what makes the whole pipeline hands-off through to the login screen.
+- name: Reboot into the fully provisioned system
+  reboot:
+    msg: "Rebooting after arch-project provisioning"
+    reboot_timeout: 300
+  when: reboot_after_provision | bool

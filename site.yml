@@ -14,3 +14,4 @@
     - { role: gaming, tags: [gaming] }
     - { role: dotfiles, tags: [dotfiles] }
     - { role: experimental, tags: [experimental] }
+    - { role: finalize, tags: [finalize] }
