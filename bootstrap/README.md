@@ -32,9 +32,9 @@ ever pointing it at real hardware.
 
 ## One-time setup before first use
 
-**1. Push this repo to GitHub** (or wherever), then edit
-`user_configuration.template.json` and replace
-`__ARCH_PROJECT_REPO_URL__` with the real clone URL.
+**1. Repo URL is already set.** `user_configuration.template.json` points at
+`https://github.com/fenn0046/archinstaller.git` - update it if the remote
+ever changes.
 
 **2. Generate password hashes.** From any Linux machine (the Arch live ISO
 works fine - it has `openssl`):
@@ -53,8 +53,8 @@ cp user_credentials.sample.json user_credentials.json
 Boot the Arch ISO on your target VM/machine (make sure it's on the network),
 then, since the ISO has `git` available out of the box:
 ```
-git clone <your repo URL>
-cd arch-project/bootstrap
+git clone https://github.com/fenn0046/archinstaller.git
+cd archinstaller/bootstrap
 cp user_credentials.sample.json user_credentials.json   # then fill in hashes
 ./detect-disk-and-install.sh
 ```
