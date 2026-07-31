@@ -5,7 +5,7 @@
 # Btrfs (set that up in archinstall/partitioning before running this repo).
 - name: Determine root filesystem type
   set_fact:
-    root_is_btrfs: "{{ (ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='fstype') | first | default('')) == 'btrfs' }}"
+    root_is_btrfs: "{{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | map(attribute='fstype') | first | default('')) == 'btrfs' }}"
 
 - name: Skip snapshot setup (root is not Btrfs)
   debug:
@@ -22,6 +22,33 @@
       - grub-btrfs
     state: present
   when: root_is_btrfs
+
+- name: Check if snapper config for root already exists
+  stat:
+    path: /etc/snapper/configs/root
+  register: snapper_root_config
+  when: root_is_btrfs
+
+# archinstall's disk layout pre-creates an empty @.snapshots subvolume
+# (mounted at /.snapshots) - but `snapper create-config` wants to create
+# that subvolume itself and fails if one already exists there. Only ever
+# safe to remove it when snapper hasn't been configured yet (no real
+# snapshot history to lose) and it's confirmed to actually be a subvolume
+# (not guessing based on existence alone).
+- name: Check whether /.snapshots is already a btrfs subvolume
+  command: btrfs subvolume show /.snapshots
+  register: snapshots_subvol_check
+  changed_when: false
+  failed_when: false
+  when: root_is_btrfs and not snapper_root_config.stat.exists
+
+- name: Remove the pre-existing empty .snapshots subvolume so snapper can create its own
+  command: btrfs subvolume delete /.snapshots
+  when: >
+    root_is_btrfs and
+    not snapper_root_config.stat.exists and
+    snapshots_subvol_check.rc is defined and
+    snapshots_subvol_check.rc == 0
 
 - name: Create snapper config for root
   command: snapper -c root create-config /
