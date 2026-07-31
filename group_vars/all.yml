@@ -19,6 +19,13 @@ reboot_after_provision: true
 # Ansible (and everything in it that runs as archuser) has already finished.
 force_password_expiry: false
 
+# roles/aur grants aur_build_user passwordless sudo so makepkg/paru can
+# install packages non-interactively; roles/finalize revokes it again once
+# provisioning is done. Set true to leave it in place permanently (common
+# for a solo daily-driver account, but a real security tradeoff - decide
+# deliberately rather than defaulting into it).
+keep_passwordless_sudo: false
+
 # --- AUR ---
 aur_helper: paru
 # AUR packages must be built as a normal user, never root. This is hardcoded

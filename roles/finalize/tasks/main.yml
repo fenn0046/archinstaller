@@ -1,4 +1,13 @@
 ---
+# Revoke the passwordless sudo that roles/aur granted for makepkg/paru to
+# install packages non-interactively - no longer needed once provisioning
+# is done, unless explicitly kept.
+- name: Remove aur_build_user's passwordless sudo grant
+  file:
+    path: "/etc/sudoers.d/10-{{ aur_build_user }}-nopasswd"
+    state: absent
+  when: not (keep_passwordless_sudo | bool)
+
 # Only used by the iso/ baked-credential flow (force_password_expiry=true
 # passed via -e), never the bootstrap/ manual flow where the user set a
 # real password themselves. Must run here, at the very end, not at install

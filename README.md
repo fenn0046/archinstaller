@@ -60,17 +60,17 @@ scratch, including on a fresh VM after a snapshot revert.
 ## AUR / sudoers note
 
 AUR packages (`roles/aur`, `roles/experimental`, `roles/gaming`) are built via
-`makepkg` as `aur_build_user` (hardcoded to `archuser` in `group_vars/all.yml`
-rather than auto-detected, since the unattended first-boot service runs
-`ansible-playbook` directly as root with no invoking sudo user to detect),
-because `makepkg` refuses to run as root. If you're running the playbook
-manually (not via the unattended bootstrap flow) and using `--ask-become-pass`,
-that account additionally needs passwordless sudo for the non-interactive
-AUR build steps specifically:
+`makepkg`/`paru` as `aur_build_user` (hardcoded to `archuser` in
+`group_vars/all.yml` rather than auto-detected, since the unattended
+first-boot service runs `ansible-playbook` directly as root with no invoking
+sudo user to detect), because `makepkg` refuses to run as root.
 
-```
-echo "archuser ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/10-ansible-bootstrap
-```
+`makepkg`/`paru` themselves need to escalate from that account back up to
+root internally (to actually install the package) - `roles/aur` grants
+`aur_build_user` passwordless sudo for exactly this, automatically, on every
+run. `roles/finalize` revokes it again once provisioning finishes, unless
+`keep_passwordless_sudo: true` is set in `group_vars/all.yml`. No manual
+sudoers setup needed for either flow.
 
 Remove that file once provisioning is done if you don't want it permanently.
 The unattended flow doesn't need this at all - it already runs as root.

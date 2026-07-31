@@ -1,4 +1,19 @@
 ---
+# makepkg (and later, paru itself when installing packages) escalates from
+# aur_build_user UP to root via its own internal sudo call - unlike Ansible's
+# own become_user (root de-escalating to aur_build_user, which needs no
+# password), this direction genuinely requires either an interactive prompt
+# or NOPASSWD. There's nobody to answer a prompt in the unattended flow, so
+# this grants it here rather than only documenting it as a manual step.
+# roles/finalize removes it again once provisioning is fully done, unless
+# keep_passwordless_sudo is set true.
+- name: Grant aur_build_user passwordless sudo (needed for makepkg/paru to install packages non-interactively)
+  copy:
+    dest: "/etc/sudoers.d/10-{{ aur_build_user }}-nopasswd"
+    content: "{{ aur_build_user }} ALL=(ALL) NOPASSWD: ALL\n"
+    mode: '0440'
+    validate: 'visudo -cf %s'
+
 - name: Ensure build tooling is present
   pacman:
     name: [base-devel, git]
