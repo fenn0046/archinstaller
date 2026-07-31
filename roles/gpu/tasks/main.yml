@@ -34,9 +34,15 @@
     state: present
   when: gpu_vendor == 'intel'
 
-- name: Install Nvidia proprietary driver stack
+# The traditional closed-source nvidia/nvidia-dkms packages have been
+# removed from Arch's repos entirely - only the open-source kernel module
+# remains. DKMS (not the kernel-version-locked nvidia-open) so it builds
+# against both linux and linux-lts, matching our kernel-hedge design;
+# linux-headers is needed alongside the linux-lts-headers roles/base
+# already installs, so DKMS has headers for both.
+- name: Install Nvidia open-source kernel module (proprietary driver no longer exists in Arch repos)
   pacman:
-    name: [nvidia, nvidia-utils, nvidia-settings]
+    name: [nvidia-open-dkms, nvidia-utils, nvidia-settings, linux-headers]
     state: present
   when: gpu_vendor == 'nvidia'
 
@@ -54,9 +60,12 @@
     state: started
   when: gpu_vendor == 'virtio'
 
+# xf86-video-vmware has been removed from Arch's repos - the generic
+# "modesetting" driver bundled with xorg-server handles VMware SVGA now.
+# xf86-input-vmmouse fixes absolute-mode mouse capture in the guest.
 - name: Install VMware guest stack
   pacman:
-    name: [mesa, xf86-video-vmware, open-vm-tools]
+    name: [mesa, xf86-input-vmmouse, open-vm-tools]
     state: present
   when: gpu_vendor == 'vmware'
 

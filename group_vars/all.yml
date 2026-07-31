@@ -92,7 +92,7 @@ gaming_packages:
 enable_experimental: false
 experimental_packages:
   - kvantum                # Qt/KDE theming engine, deep customization
-  - btrfs-assistant-git     # GUI for browsing/restoring snapper snapshots
+  - btrfs-assistant         # GUI for browsing/restoring snapper snapshots - now in official repos, not just AUR
   - distrobox               # disposable containers for trying tools without touching the host
   - starship                # cross-shell prompt, easy visual win
   - fish
