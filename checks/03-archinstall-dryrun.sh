@@ -35,7 +35,7 @@ print(d['disk_config']['device_modifications'][0]['partitions'][1]['btrfs'])
 echo ""
 echo "=== Running archinstall --dry-run ==="
 archinstall --config /tmp/test_config.json \
-  --creds /repo/iso/overlay/airootfs/root/archproject-bootstrap/user_credentials.json \
+  --creds /repo/checks/fixtures/user_credentials.json \
   --silent --dry-run
 RC=$?
 

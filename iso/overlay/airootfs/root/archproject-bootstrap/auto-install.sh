@@ -12,6 +12,17 @@ TEMPLATE="$DIR/user_configuration.json"
 CREDS="$DIR/user_credentials.json"
 OUT_CONFIG="/tmp/user_configuration.json"
 
+# The disk layout in user_configuration.json is GPT with an ESP at /boot and
+# no BIOS boot partition, so GRUB can only install in UEFI mode. Checked up
+# front: otherwise this fails ~20 minutes in, at grub-install, with nobody
+# watching and an obscure error.
+if [ ! -d /sys/firmware/efi ]; then
+  echo "[archproject] This layout is GPT + ESP with no BIOS boot partition, so it" >&2
+  echo "[archproject] requires UEFI firmware - but this machine booted in legacy" >&2
+  echo "[archproject] BIOS mode. Set the VM firmware to UEFI and boot again." >&2
+  exit 1
+fi
+
 echo "[archproject] waiting for network..."
 for i in $(seq 1 30); do
   curl -fsS --max-time 5 https://archlinux.org >/dev/null 2>&1 && break

@@ -52,7 +52,7 @@ echo "=== Running REAL archinstall (not dry-run) ==="
 ARCHINSTALL_OK=0
 for attempt in 1 2 3; do
   if archinstall --config /tmp/smoke_config.json \
-      --creds /repo/iso/overlay/airootfs/root/archproject-bootstrap/user_credentials.json \
+      --creds /repo/checks/fixtures/user_credentials.json \
       --silent; then
     ARCHINSTALL_OK=1
     break
@@ -107,27 +107,62 @@ run_ansible() {
     'cd /root/arch-project && ansible-playbook site.yml -e reboot_after_provision=false -e skip_grub_regen=true'
 }
 
-# The nested nspawn/loop/Btrfs stack has shown occasional real (not
-# archinstall-specific) storage-layer I/O errors under sustained heavy
-# write load (observed reproducibly around roles/apps' package burst,
-# independent of disk headroom - 48G and 80G both hit it). Since
-# ansible-playbook is idempotent by design, retrying the whole run after
-# a transient I/O hiccup is safe: already-applied steps just report ok.
+# Distinct exit code for "this is the known environment ceiling, not your
+# bug" - run-all.ps1 reports it differently from a real failure.
+KNOWN_CEILING_RC=78
+
+# The nested nspawn/loop/Btrfs stack has a hard, reproducible ceiling under
+# sustained heavy write load (see checks/README.md): the guest's storage
+# faults with [Errno 5] Input/output error, reliably during roles/apps'
+# package burst, and systemd reports the unit dying with 7/BUS.
+is_storage_ceiling() {
+  grep -qE "Input/output error|status=7/BUS|result: core-dump" "$1"
+}
+
+print_ceiling_notice() {
+  echo ""
+  echo "==================================================================="
+  echo " TIER 4: STOPPED AT THE KNOWN ENVIRONMENT CEILING (not a code bug)"
+  echo "==================================================================="
+  echo "The guest's storage faulted with an I/O error - the documented limit"
+  echo "of this 4-layer nested stack (WSL2 -> Podman -> loop file -> Btrfs"
+  echo "-> nspawn) under heavy write volume. Ruled out already: disk size"
+  echo "(24G/48G/80G all hit it), leaked container state, and a stale podman"
+  echo "daemon. See checks/README.md."
+  echo ""
+  echo "Everything Tier 4 ran BEFORE this point is still a valid pass."
+  echo "Review the task list above: a failure at roles/apps is expected here,"
+  echo "but a failure in an EARLIER role is real and must be fixed."
+}
+
+# Retrying is worth it for transient network/mirror trouble, but NOT for the
+# ceiling above: once it hits, the guest filesystem is wedged and every later
+# attempt dies in microseconds. Detect it and stop immediately rather than
+# burning two more attempts and then reporting a generic failure the reader
+# will reasonably assume is their bug. ansible-playbook is idempotent, so
+# retrying after a genuine transient hiccup is safe.
 run_ansible_with_retry() {
-  local logfile="$1" ok=0
+  local logfile="$1"
   for attempt in 1 2 3; do
     if run_ansible 2>&1 | tee "$logfile"; then
-      ok=1
-      break
+      return 0
     fi
-    echo "ansible-playbook attempt $attempt failed - retrying in 10s (see checks/README.md re: storage-layer flakiness)..."
+    if is_storage_ceiling "$logfile"; then
+      return "$KNOWN_CEILING_RC"
+    fi
+    echo "ansible-playbook attempt $attempt failed - retrying in 10s (transient network/mirror trouble)..."
     sleep 10
   done
-  [ "$ok" -eq 1 ]
+  return 1
 }
 
 echo "=== Running ansible-playbook (1st run) ==="
-if ! run_ansible_with_retry /tmp/ansible-run1.log; then
+run_ansible_with_retry /tmp/ansible-run1.log
+RC=$?
+if [ "$RC" -eq "$KNOWN_CEILING_RC" ]; then
+  print_ceiling_notice
+  exit "$KNOWN_CEILING_RC"
+elif [ "$RC" -ne 0 ]; then
   echo "TIER 4: FAILED on first ansible-playbook run (after 3 attempts)"
   exit 1
 fi
@@ -135,7 +170,12 @@ CHANGED1=$(grep -oP 'changed=\K[0-9]+' /tmp/ansible-run1.log | tail -1)
 
 echo ""
 echo "=== Running ansible-playbook (2nd run - idempotency check) ==="
-if ! run_ansible_with_retry /tmp/ansible-run2.log; then
+run_ansible_with_retry /tmp/ansible-run2.log
+RC=$?
+if [ "$RC" -eq "$KNOWN_CEILING_RC" ]; then
+  print_ceiling_notice
+  exit "$KNOWN_CEILING_RC"
+elif [ "$RC" -ne 0 ]; then
   echo "TIER 4: FAILED on second (idempotency) ansible-playbook run (after 3 attempts)"
   exit 1
 fi

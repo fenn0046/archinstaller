@@ -8,26 +8,47 @@
     state: absent
   when: not (keep_passwordless_sudo | bool)
 
-# Only used by the iso/ baked-credential flow (force_password_expiry=true
-# passed via -e), never the bootstrap/ manual flow where the user set a
-# real password themselves. Must run here, at the very end, not at install
-# time - archuser's password has to stay valid for every become_user:
-# archuser task earlier in this same playbook run (aur/gaming/experimental
-# roles) and for the first-boot service's own `sudo -u archuser git clone`.
-# Expiring it any earlier breaks all of that non-interactively.
-- name: Force password change on next login (baked-credential ISO flow only)
-  command: "chage -d 0 {{ item }}"
-  loop:
-    - "{{ aur_build_user }}"
-    - root
-  when: force_password_expiry | bool
+# The "provisioning already happened" marker, checked by the first-boot
+# service's ConditionPathExists (see bootstrap/user_configuration.template.json).
+# This is what actually stops the service re-running forever: the service
+# script's own trailing `systemctl disable` can never run on a successful
+# provision, because the reboot below kills the script first. Leaving that
+# disable in place is still useful - it means a *failed* run retries on the
+# next boot, while a successful one is permanently skipped via this marker.
+#
+# Written unconditionally, not gated on reboot_after_provision: it means
+# "the playbook finished", which is true either way.
+- name: Ensure the provisioning state directory exists
+  file:
+    path: /var/lib/arch-project
+    state: directory
+    mode: '0755'
+
+- name: Mark provisioning as complete
+  copy:
+    dest: /var/lib/arch-project/provisioned
+    content: "arch-project provisioning completed\n"
+    mode: '0644'
 
 # A reboot is genuinely needed here, not just tidy: the GPU driver (Nvidia
 # especially) wants a fresh boot to load correctly, and SDDM was only
 # enabled (starts on next boot) rather than started. Doing it automatically
 # is what makes the whole pipeline hands-off through to the login screen.
-- name: Reboot into the fully provisioned system
-  reboot:
-    msg: "Rebooting after arch-project provisioning"
-    reboot_timeout: 300
+#
+# NOT ansible.builtin.reboot: that module hard-refuses to run over a local
+# connection ("Running reboot with local connection would reboot the control
+# node"), and this playbook always runs locally on the target via the
+# first-boot service.
+#
+# Nor a backgrounded `sleep && systemctl reboot`: that child would live in
+# the bootstrap service's own cgroup, and systemd cleans up leftover
+# processes there once the Type=oneshot ExecStart returns - the reboot could
+# be killed before it ever fires.
+#
+# systemd-run hands the job to PID 1 as an independent transient timer, so
+# it's immune to both problems. The 10s delay lets ansible-playbook print
+# its recap and lets the first-boot script reach its own final lines
+# cleanly, instead of being cut off mid-run by the shutdown.
+- name: Schedule a reboot into the fully provisioned system
+  command: systemd-run --on-active=10 --timer-property=AccuracySec=1s systemctl reboot
   when: reboot_after_provision | bool

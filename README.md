@@ -75,14 +75,19 @@ sudoers setup needed for either flow.
 ## Before testing on a VM
 
 Run `checks/run-all.ps1` first, every time - not just once. It's a layered
-validation pipeline (syntax/lint, live package-name check, a real
-`archinstall --dry-run`, and a full smoke test that actually partitions a
-disposable loopback disk and runs this playbook for real, twice) that runs
-entirely inside a container in a couple minutes to ~20 minutes depending on
-how much of it you run, and exists specifically because most of the bugs
-found while building this were things a VM boot cycle is a slow, expensive
-way to discover. See [`checks/README.md`](checks/README.md) for what each
-tier catches and why.
+validation pipeline (syntax/lint, first-boot pipeline contracts, live
+package-name check, a real `archinstall --dry-run`, and a full smoke test
+that actually partitions a disposable loopback disk and runs this playbook
+for real, twice) that runs entirely inside a container in a couple minutes
+to ~20 minutes depending on how much of it you run, and exists specifically
+because most of the bugs found while building this were things a VM boot
+cycle is a slow, expensive way to discover. See
+[`checks/README.md`](checks/README.md) for what each tier catches and why.
+
+**Set the VM's firmware to UEFI.** The disk layout is GPT with an ESP at
+`/boot` and no BIOS boot partition, so GRUB can only install in UEFI mode.
+Both installer scripts now check this up front and abort with a clear
+message, rather than failing at `grub-install` twenty minutes in.
 
 ## Running it manually
 

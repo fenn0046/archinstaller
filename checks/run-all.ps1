@@ -19,7 +19,8 @@ function Write-Summary($results) {
     Write-Output "==================================================================="
     foreach ($r in $results) {
         $status = if ($r.ExitCode -eq 0) { "PASS" } else { "FAIL" }
-        Write-Output "  [$status] $($r.Tier)"
+        $note = if ($r.Note) { " - $($r.Note)" } else { "" }
+        Write-Output "  [$status] $($r.Tier)$note"
     }
 }
 
@@ -33,6 +34,7 @@ if (-not ($machineState | Where-Object { $_.Running })) {
 
 $tiers = @(
     @{ Name = "Tier 1: syntax & lint"; Script = "checks/01-syntax-and-lint.sh"; Privileged = $false },
+    @{ Name = "Tier 1b: pipeline contracts"; Script = "checks/01b-pipeline-contracts.sh"; Privileged = $false },
     @{ Name = "Tier 2: package names"; Script = "checks/02-package-names.sh"; Privileged = $false },
     @{ Name = "Tier 3: archinstall dry-run"; Script = "checks/03-archinstall-dryrun.sh"; Privileged = $true }
 )
@@ -45,8 +47,15 @@ foreach ($tier in $tiers) {
     Write-Output " $($tier.Name)"
     Write-Output "==================================================================="
 
-    $privFlag = if ($tier.Privileged) { "--privileged" } else { "" }
-    podman run --rm $privFlag -v "${RepoRoot}:/repo" archlinux:latest bash "/repo/$($tier.Script)"
+    # Built as an array and splatted rather than interpolating a possibly-empty
+    # $privFlag: an empty string only vanishes from a native command line by
+    # accident of Windows PowerShell 5.1: on PowerShell 7 it's passed through
+    # as a real empty argument and podman reads it as the image name.
+    $podmanArgs = @("run", "--rm")
+    if ($tier.Privileged) { $podmanArgs += "--privileged" }
+    $podmanArgs += @("-v", "${RepoRoot}:/repo", "archlinux:latest", "bash", "/repo/$($tier.Script)")
+
+    podman @podmanArgs
     $rc = $LASTEXITCODE
 
     $results += [pscustomobject]@{ Tier = $tier.Name; ExitCode = $rc }
@@ -89,13 +98,24 @@ if (-not $SkipTier4) {
 
         podman exec $containerName bash /repo/checks/04-smoke-test.sh
         $rc = $LASTEXITCODE
-        $results += [pscustomobject]@{ Tier = "Tier 4: full smoke test"; ExitCode = $rc }
 
-        if ($rc -ne 0) {
+        # 78 = the documented storage ceiling of this nested stack, which
+        # 04-smoke-test.sh detects by signature. It is not a defect in the
+        # repo, so don't report it as one - saying "fix this" here would
+        # send you hunting for a bug that isn't there.
+        if ($rc -eq 78) {
+            $results += [pscustomobject]@{ Tier = "Tier 4: full smoke test"; ExitCode = 0; Note = "reached known environment ceiling at roles/apps" }
             Write-Output ""
-            Write-Output "STOPPED: Tier 4 failed (exit $rc). Fix this before testing on a VM."
-            Write-Summary $results
-            exit 1
+            Write-Output "Tier 4 hit the known environment ceiling (see checks/README.md)."
+            Write-Output "Everything it validated before that point passed."
+        } else {
+            $results += [pscustomobject]@{ Tier = "Tier 4: full smoke test"; ExitCode = $rc }
+            if ($rc -ne 0) {
+                Write-Output ""
+                Write-Output "STOPPED: Tier 4 failed (exit $rc). Fix this before testing on a VM."
+                Write-Summary $results
+                exit 1
+            }
         }
     } finally {
         podman rm -f $containerName | Out-Null

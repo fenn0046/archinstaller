@@ -16,6 +16,16 @@ if [ ! -f "$CREDS" ]; then
   exit 1
 fi
 
+# The disk layout in the template is GPT with an ESP at /boot and no BIOS
+# boot partition, so GRUB can only install in UEFI mode. Checked up front:
+# otherwise this fails ~20 minutes in, at grub-install, with an obscure error.
+if [ ! -d /sys/firmware/efi ]; then
+  echo "This layout is GPT + ESP with no BIOS boot partition, so it requires" >&2
+  echo "UEFI firmware - but this machine booted in legacy BIOS mode. Set the" >&2
+  echo "VM/system firmware to UEFI and boot the installer again." >&2
+  exit 1
+fi
+
 mapfile -t CANDIDATES < <(lsblk -dpno NAME,TYPE | awk '$2=="disk"{print $1}')
 
 TARGET_DISK="${1:-}"

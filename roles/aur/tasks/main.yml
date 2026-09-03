@@ -19,17 +19,21 @@
     name: [base-devel, git]
     state: present
 
+# stat, not `command: which paru`: `which` is not in Arch's base meta-package
+# (it comes in via base-devel), and if the binary is missing the command
+# module fails at exec time rather than returning a clean non-zero rc - so
+# the old `paru_check.rc` test depended on a package this role doesn't
+# guarantee. stat has neither problem.
 - name: Check whether paru is already installed
-  command: which paru
+  stat:
+    path: /usr/bin/paru
   register: paru_check
-  failed_when: false
-  changed_when: false
 
 # AUR packages must be built as a normal user - makepkg refuses to run as
 # root. The build user needs passwordless sudo for this to work
 # non-interactively (see README "AUR / sudoers" section).
 - name: Build and install paru from the AUR
-  when: aur_helper == 'paru' and paru_check.rc != 0
+  when: aur_helper == 'paru' and not paru_check.stat.exists
   become: true
   become_user: "{{ aur_build_user }}"
   block:

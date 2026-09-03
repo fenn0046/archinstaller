@@ -5,5 +5,10 @@
 # Real credentials - never commit password hashes. Keep only the .sample.json.
 bootstrap/user_credentials.json
 
+# The ISO's credentials are generated inside the build container from the
+# password typed into build-iso.ps1. Nothing should ever write a real hash
+# back here, but if something does, don't let it be committed.
+iso/overlay/airootfs/root/archproject-bootstrap/user_credentials.json
+
 # ISO build output - large binaries, rebuildable from iso/build-iso.ps1
 iso/out/
