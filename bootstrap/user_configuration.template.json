@@ -26,7 +26,7 @@
             "mountpoint": "/boot",
             "dev_path": null,
             "mount_options": [],
-            "flags": ["boot"],
+            "flags": ["boot", "esp"],
             "btrfs": []
           },
           {

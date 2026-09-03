@@ -119,6 +119,41 @@ for consumer in consumers:
             f"        config with an unreplaced placeholder in it.",
         )
 
+# --- 6. The ESP partition carries the flag GRUB's UEFI path actually needs
+# Found on a real VM boot, past every other tier: archinstall's
+# _add_grub_bootloader() needs get_efi_partition(), which filters on
+# PartitionFlag.ESP specifically - a distinct flag from PartitionFlag.BOOT,
+# not an alias of it (confirmed against archinstall/lib/models/device.py:
+# is_efi() checks ESP, is_boot() checks BOOT, and get_boot_partition() is a
+# SEPARATE query used only for --boot-directory). A partition can satisfy
+# is_boot() (so archinstall happily partitions, formats, and mounts it at
+# /boot) while still failing is_efi(), and the failure only surfaces at
+# grub-install time: 'ValueError: Could not detect efi partition'. Neither
+# Tier 3 (archinstall --dry-run stops before bootloader install) nor Tier 4
+# (nspawn has no real UEFI, so skip_grub_regen bypasses this entirely) can
+# see this - it took an actual VM boot to find. Guarded here so the two
+# flags can never silently drift apart again.
+for mod in template.get("disk_config", {}).get("device_modifications", []):
+    for part in mod.get("partitions", []):
+        if part.get("mountpoint") == "/boot":
+            flags = part.get("flags", [])
+            check(
+                "esp" in flags,
+                f"{template_path.relative_to(REPO)}: the /boot partition's "
+                f"flags are {flags!r}, missing 'esp'.\n"
+                f"        archinstall's GRUB UEFI path needs get_efi_partition(),\n"
+                f"        which requires PartitionFlag.ESP specifically -\n"
+                f"        'boot' alone satisfies is_boot() (so partitioning and\n"
+                f"        mounting succeed) but not is_efi(), and grub-install\n"
+                f"        then fails with 'Could not detect efi partition'.",
+            )
+            check(
+                "boot" in flags,
+                f"{template_path.relative_to(REPO)}: the /boot partition's "
+                f"flags are {flags!r}, missing 'boot'.\n"
+                f"        Needed for get_boot_partition() (--boot-directory).",
+            )
+
 # --- Report -------------------------------------------------------------
 if failures:
     for f in failures:
@@ -132,6 +167,7 @@ print(f"  - first-boot unit guarded by ConditionPathExists=!{MARKER}")
 print(f"  - roles/finalize writes {MARKER}")
 print("  - no reboot module used with a local connection")
 print("  - disk placeholders in sync across all 3 consumers")
+print("  - /boot partition carries both 'boot' and 'esp' flags")
 print("")
 print("TIER 1b: PASSED")
 PY

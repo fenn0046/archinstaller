@@ -21,7 +21,7 @@ VM boot, before this system existed:
 | Tier | What it does | What it would have caught |
 |---|---|---|
 | 1. Syntax & lint | `ansible-playbook --syntax-check`, `--list-tasks`, `ansible-lint` | Broken YAML/Jinja, unresolvable role/task references, deprecated modules (e.g. the `ansible_mounts` deprecation warning) |
-| 1b. Pipeline contracts | Static assertions across the installer/playbook seam: the first-boot unit's `ConditionPathExists` guard, the marker `roles/finalize` writes to satisfy it, no `reboot` module under a local connection, and disk placeholders in sync across all 3 substituting consumers | The two bugs that would have broken the first genuinely successful run: `ansible.builtin.reboot` failing unconditionally over `ansible_connection=local`, and the first-boot service re-provisioning and rebooting forever because its `systemctl disable` sat after a playbook whose job is to reboot |
+| 1b. Pipeline contracts | Static assertions across the installer/playbook seam: the first-boot unit's `ConditionPathExists` guard, the marker `roles/finalize` writes to satisfy it, no `reboot` module under a local connection, disk placeholders in sync across all 3 substituting consumers, and the `/boot` partition carrying both `boot` and `esp` flags | Three bugs found the hard way: `ansible.builtin.reboot` failing unconditionally over `ansible_connection=local`; the first-boot service re-provisioning and rebooting forever because its `systemctl disable` sat after a playbook whose job is to reboot; and `grub-install` failing with "Could not detect efi partition" because the ESP partition was missing the `esp` flag (a real VM boot, past every other tier, found this one) |
 | 2. Package names | Every package referenced anywhere in the repo, checked against **live current** Arch repos | `xf86-video-vmware` and `nvidia`/`nvidia-dkms` being removed from the repos entirely |
 | 3. archinstall dry-run | Real `archinstall --dry-run` against a disposable loopback disk | `sector_size: null`, missing `dev_path`, `Unit.Percent` not existing - all schema mismatches between the official upstream sample and what's actually packaged |
 | 4. Full smoke test | Real (non-dry-run) `archinstall` install to a loopback disk, then boots that install under `systemd-nspawn` and runs `ansible-playbook site.yml` for real, twice (idempotency check) | The `snapper create-config` vs. pre-mounted `@.snapshots` conflict - the one category nothing else here can see, since it only shows up once real filesystem operations happen. Also catches most task-logic and idempotency bugs. |
@@ -37,6 +37,23 @@ would in a VM) but it cannot validate:
   bootable
 - Real GPU driver loading against actual (or virtual) hardware
 - SDDM actually reaching a visible login screen
+
+This isn't hypothetical: a real VM boot (the first one to get this far -
+past base, snapshots, gpu, aur, desktop, and into the actual bootloader
+step) hit exactly this gap. archinstall's GRUB-UEFI path needs
+`get_efi_partition()`, which filters on `PartitionFlag.ESP` specifically -
+a *distinct* flag from `PartitionFlag.BOOT`, not an alias of it. The boot
+partition's `"flags": ["boot"]` satisfied `is_boot()` fine, so partitioning,
+formatting, and mounting at `/boot` all succeeded - the failure only
+surfaced at `grub-install`, with `ValueError: Could not detect efi
+partition`. Confirmed against the real installed archinstall's source
+(`archinstall/lib/models/device.py`): `is_efi()` checks `ESP`, `is_boot()`
+checks `BOOT`, and `get_boot_partition()`/`get_efi_partition()` are
+separate queries. Fixed by giving the partition both flags:
+`"flags": ["boot", "esp"]`. Tier 1b now asserts both flags are present on
+the `/boot` partition, so this exact regression can't reappear silently -
+but the fact that it took a real boot to find at all is exactly why this
+limitations section exists.
 
 Those still need a real VM boot. Tier 4 is built to catch the large
 majority of what's failed so far before spending the time on that boot -
