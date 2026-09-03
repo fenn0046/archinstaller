@@ -2,4 +2,4 @@
 - name: regenerate grub config
   command: grub-mkconfig -o /boot/grub/grub.cfg
   listen: regenerate grub config
-  when: bootloader == 'grub'
+  when: bootloader == 'grub' and not (skip_grub_regen | bool)

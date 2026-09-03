@@ -5,6 +5,15 @@
 kernel_lts_fallback: true
 bootloader: grub   # grub | systemd-boot
 
+# Only ever set true via -e from checks/04-smoke-test.sh. grub-probe needs
+# the real block device visible to resolve its canonical path, which a
+# nested systemd-nspawn guest doesn't cleanly provide even with the loop
+# device passed through from the outer container - a real VM doesn't have
+# this problem. Bootloader validation is an explicitly documented Tier 4
+# limitation (see checks/README.md); this just stops it from hard-failing
+# the rest of the smoke test.
+skip_grub_regen: false
+
 # --- Desktop ---
 desktop_environment: kde
 

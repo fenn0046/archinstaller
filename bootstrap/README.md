@@ -6,15 +6,20 @@ and automatically clones+runs the main Ansible playbook on first boot -
 no menu selections, no second command to type after reboot.
 
 **This wipes the target disk.** Test on a disposable/snapshotted VM before
-ever pointing it at real hardware.
+ever pointing it at real hardware. **Run `../checks/run-all.ps1` first** -
+see [`../checks/README.md`](../checks/README.md) for why.
 
 ## How it fits together
 
 1. `user_configuration.template.json` - the archinstall config (verified
-   against archinstall's actual source, not guessed): Btrfs root with
-   `@`/`@home`/`@log`/`@pkg`/`@.snapshots` subvolumes, GRUB, NetworkManager,
-   a `Minimal` profile (Ansible owns the desktop, not archinstall, so KDE
-   isn't defined in two places), PipeWire audio, zram swap. It also embeds a
+   against the *actually installed* archinstall source extracted from a
+   real release ISO, not just the upstream GitHub sample - those two have
+   drifted from each other): Btrfs root with `@`/`@home`/`@log`/`@pkg`
+   subvolumes (deliberately not `@.snapshots` - `snapper create-config`
+   needs to create that one itself, see `roles/snapshots`), GRUB,
+   NetworkManager, a `Minimal` profile (Ansible owns the desktop, not
+   archinstall, so KDE isn't defined in two places), PipeWire audio, zram
+   swap. It also embeds a
    `custom_commands` entry that archinstall runs inside the freshly installed
    system before reboot - this writes and enables a **systemd oneshot
    service** (`arch-project-bootstrap.service`) that runs automatically on
@@ -64,10 +69,13 @@ snapshots, etc.) has completed.
   (matches `user_credentials.json` and `group_vars/all.yml`'s
   `aur_build_user`). If you rename the account, update both places.
 - If `archinstall`'s JSON schema changes in a future version, the exact keys
-  in `user_configuration.template.json` may need updating - it was verified
-  against the `archlinux/archinstall` GitHub repo's own
-  `examples/config-sample.json` and source models on 2026-07-30, pinned to
-  archinstall version 2.8.6.
+  in `user_configuration.template.json` may need updating. Verified against
+  the actual installed `archinstall-4.4-1` source (extracted from a real
+  release ISO's squashfs, not assumed from the GitHub sample - the two
+  disagree on several fields, e.g. the upstream sample's `"sector_size":
+  null` and `"unit": "Percent"` both crash this installed version).
+  `checks/03-archinstall-dryrun.sh` and `checks/04-smoke-test.sh` catch
+  this kind of drift automatically going forward.
 - This assumes UEFI firmware (the boot partition is a FAT32 ESP mounted at
   `/boot`). Legacy BIOS boot would need a `bios_grub` partition instead -
   flag it if your target hardware/VM is BIOS-only.

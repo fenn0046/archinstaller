@@ -72,8 +72,17 @@ run. `roles/finalize` revokes it again once provisioning finishes, unless
 `keep_passwordless_sudo: true` is set in `group_vars/all.yml`. No manual
 sudoers setup needed for either flow.
 
-Remove that file once provisioning is done if you don't want it permanently.
-The unattended flow doesn't need this at all - it already runs as root.
+## Before testing on a VM
+
+Run `checks/run-all.ps1` first, every time - not just once. It's a layered
+validation pipeline (syntax/lint, live package-name check, a real
+`archinstall --dry-run`, and a full smoke test that actually partitions a
+disposable loopback disk and runs this playbook for real, twice) that runs
+entirely inside a container in a couple minutes to ~20 minutes depending on
+how much of it you run, and exists specifically because most of the bugs
+found while building this were things a VM boot cycle is a slow, expensive
+way to discover. See [`checks/README.md`](checks/README.md) for what each
+tier catches and why.
 
 ## Running it manually
 
@@ -84,6 +93,7 @@ ansible-playbook site.yml --ask-become-pass
 ## Structure
 
 ```
+checks/                # pre-flight validation pipeline - run before every VM test
 bootstrap/             # supervised unattended install: archinstall config + disk-detect script
 iso/                   # fully baked, zero-input custom ISO build (Podman-based)
 site.yml               # main playbook, role order

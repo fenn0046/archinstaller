@@ -10,6 +10,11 @@ no confirmation step before the disk gets wiped. Only boot this ISO on a
 machine/VM you specifically intend to wipe. Never leave it as the default
 boot device on anything else.
 
+**Run `../checks/run-all.ps1` before building/booting this** - see
+[`../checks/README.md`](../checks/README.md). It exists specifically
+because most bugs found building this ISO were much cheaper to catch this
+way than via a full boot cycle.
+
 ## How it works
 
 - Built on top of Arch's official `releng` ISO profile (the same one used

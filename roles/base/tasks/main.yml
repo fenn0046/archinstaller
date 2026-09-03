@@ -1,4 +1,16 @@
 ---
+# archinstall's pacstrap already initializes a working keyring (-K flag),
+# but the local trust database can still be missing trust for recently
+# rotated packager keys until archlinux-keyring-wkd-sync.service/.timer
+# gets around to refreshing it - which happens asynchronously and isn't
+# guaranteed to finish before this first-boot run starts installing
+# packages. Repopulating explicitly here avoids a real (not just
+# theoretical) race: "signature ... is unknown trust" errors on packages
+# signed by a key the keyring hasn't caught up on yet.
+- name: Ensure the local pacman keyring trusts current packager keys
+  command: pacman-key --populate archlinux
+  changed_when: true
+
 - name: Sync pacman package databases
   pacman:
     update_cache: true

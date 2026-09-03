@@ -31,7 +31,10 @@ if (-not ($machineState | Where-Object { $_.Running })) {
 
 $containerScript = @'
 set -euo pipefail
-pacman -Sy --noconfirm --needed archiso python archlinux-keyring
+# -Syu, not -Sy --needed: the archlinux:latest base image's own packages
+# (glibc etc.) can lag behind what freshly-pulled packages actually need,
+# causing GLIBC version mismatches otherwise.
+pacman -Syu --noconfirm --needed archiso python archlinux-keyring
 
 cp -r /usr/share/archiso/configs/releng /tmp/profile
 cp -r /repo/iso/overlay/airootfs/. /tmp/profile/airootfs/
