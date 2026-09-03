@@ -55,6 +55,35 @@ the `/boot` partition, so this exact regression can't reappear silently -
 but the fact that it took a real boot to find at all is exactly why this
 limitations section exists.
 
+**A second bug at the same boundary, found on the very next VM attempt**:
+once the ESP was correctly detected, `grub-install` got much further -
+formatted the ESP, wrote GRUB's files - and failed on the last step,
+registering the boot entry:
+```
+grub-install: info: executing efibootmgr -c -d /dev/sda -p 1 -w -L GRUB -l \EFI\GRUB\grubx64.efi.
+Could not add entry to BootOrder: Invalid argument
+grub-install: error: efibootmgr failed to register the boot entry: No such device or address.
+```
+This is `efibootmgr` trying to write a named boot entry into the VM's
+UEFI NVRAM - a well-known weak spot across virtualized UEFI firmware
+(VMware, VirtualBox, and QEMU/OVMF all vary in how reliably they persist
+NVRAM writes), unrelated to anything this repo's config controls. The
+standard fix is `bootloader_config.removable: true`, which makes
+`grub-install` pass `--removable` and install to the UEFI-standard
+fallback path (`\EFI\BOOT\BOOTX64.EFI`) instead - every UEFI firmware
+boots that path automatically with no NVRAM write involved at all.
+Confirmed the wiring end-to-end against the real installed archinstall's
+source (`archinstall/scripts/guided.py` passes
+`config.bootloader_config.removable` straight through as
+`bootloader_removable`, which is exactly what gates the `--removable`
+flag in `_add_grub_bootloader`). Changed from `false` to `true` in
+`bootstrap/user_configuration.template.json`.
+
+Both of these are squarely inside the "Actual UEFI firmware boot / GRUB
+installing to a real ESP and being bootable" limitation already called out
+above - nothing before an actual VM boot could have caught either one, and
+that's exactly why that limitation is listed rather than assumed away.
+
 Those still need a real VM boot. Tier 4 is built to catch the large
 majority of what's failed so far before spending the time on that boot -
 not to replace it entirely.
