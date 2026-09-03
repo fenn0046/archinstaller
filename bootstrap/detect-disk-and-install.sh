@@ -69,6 +69,20 @@ sed -e "s#__DISK_DEVICE__#${TARGET_DISK}#" \
 
 archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
 
+# Without this, a VM whose virtual optical drive still has the Arch ISO
+# attached will very likely boot straight back into the live medium
+# instead of the disk just installed to - most firmware boot orders put
+# the CD-ROM ahead of the hard disk. `eject` (part of util-linux, always
+# present) sends a real eject command to the virtual drive - VMware,
+# VirtualBox, and QEMU all release/disconnect the ISO in response, so the
+# firmware genuinely has nothing bootable there on the next power-on.
+# No-op if there's no optical drive at all (e.g. booted from USB instead).
+echo "Ejecting installation media so the reboot below boots the installed disk, not this live ISO again..."
+for cdrom in /dev/sr*; do
+  [ -e "$cdrom" ] && eject "$cdrom" 2>/dev/null
+done
+true  # don't let a harmless eject failure abort after a successful install
+
 # --silent explicitly skips archinstall's own "reboot now?" prompt (it just
 # returns control to this shell when done), so we do it ourselves.
 echo "Install complete. Rebooting in 5 seconds..."

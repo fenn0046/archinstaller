@@ -21,7 +21,7 @@ VM boot, before this system existed:
 | Tier | What it does | What it would have caught |
 |---|---|---|
 | 1. Syntax & lint | `ansible-playbook --syntax-check`, `--list-tasks`, `ansible-lint` | Broken YAML/Jinja, unresolvable role/task references, deprecated modules (e.g. the `ansible_mounts` deprecation warning) |
-| 1b. Pipeline contracts | Static assertions across the installer/playbook seam: the first-boot unit's `ConditionPathExists` guard, the marker `roles/finalize` writes to satisfy it, no `reboot` module under a local connection, disk placeholders in sync across all 3 substituting consumers, and the `/boot` partition carrying both `boot` and `esp` flags | Three bugs found the hard way: `ansible.builtin.reboot` failing unconditionally over `ansible_connection=local`; the first-boot service re-provisioning and rebooting forever because its `systemctl disable` sat after a playbook whose job is to reboot; and `grub-install` failing with "Could not detect efi partition" because the ESP partition was missing the `esp` flag (a real VM boot, past every other tier, found this one) |
+| 1b. Pipeline contracts | Static assertions across the installer/playbook seam: the first-boot unit's `ConditionPathExists` guard, the marker `roles/finalize` writes to satisfy it, no `reboot` module under a local connection, disk placeholders in sync across all 3 substituting consumers, both installer scripts ejecting boot media before rebooting, and the `/boot` partition carrying both `boot` and `esp` flags | Four bugs found the hard way, three of them only findable via a real VM boot: `ansible.builtin.reboot` failing unconditionally over `ansible_connection=local`; the first-boot service re-provisioning forever because its `systemctl disable` sat after a playbook whose job is to reboot; `grub-install` failing with "Could not detect efi partition" from a missing `esp` flag; and the post-install reboot going back into the live ISO instead of the installed disk because the CD-ROM was never ejected |
 | 2. Package names | Every package referenced anywhere in the repo, checked against **live current** Arch repos | `xf86-video-vmware` and `nvidia`/`nvidia-dkms` being removed from the repos entirely |
 | 3. archinstall dry-run | Real `archinstall --dry-run` against a disposable loopback disk | `sector_size: null`, missing `dev_path`, `Unit.Percent` not existing - all schema mismatches between the official upstream sample and what's actually packaged |
 | 4. Full smoke test | Real (non-dry-run) `archinstall` install to a loopback disk, then boots that install under `systemd-nspawn` and runs `ansible-playbook site.yml` for real, twice (idempotency check) | The `snapper create-config` vs. pre-mounted `@.snapshots` conflict - the one category nothing else here can see, since it only shows up once real filesystem operations happen. Also catches most task-logic and idempotency bugs. |
@@ -79,10 +79,32 @@ source (`archinstall/scripts/guided.py` passes
 flag in `_add_grub_bootloader`). Changed from `false` to `true` in
 `bootstrap/user_configuration.template.json`.
 
-Both of these are squarely inside the "Actual UEFI firmware boot / GRUB
-installing to a real ESP and being bootable" limitation already called out
-above - nothing before an actual VM boot could have caught either one, and
-that's exactly why that limitation is listed rather than assumed away.
+**A third bug at the exact same boundary**, found immediately after: with
+`grub-install` finally succeeding, the archinstall's own post-install
+reboot went straight back into the live ISO instead of the disk that was
+just installed to. Most VM firmware boot orders put the CD-ROM ahead of
+the hard disk, and this ISO's own `.automated_script.sh` hook runs the
+zero-confirmation installer unconditionally on tty1 login - so the live
+medium immediately started wiping the same disk a second time. (In this
+case the disk was left in a genuinely broken, half-wiped state once the
+VM was powered off mid-re-install to stop it - the only real recovery
+here was a clean re-run from scratch, not trying to repair the partial
+wipe.) Fixed by ejecting the optical drive (`eject`, part of `util-linux`,
+always present) right before each installer script's own reboot - VMware,
+VirtualBox, and QEMU all release the ISO from the virtual drive in
+response to a real eject command, so the firmware genuinely has nothing
+bootable there afterward. Guarded by Tier 1b, and proved to fail correctly
+against a scratch copy with the eject step removed before being trusted.
+
+All three of these are squarely inside the "Actual UEFI firmware boot /
+GRUB installing to a real ESP and being bootable" limitation already
+called out above - nothing before an actual VM boot could have caught any
+of them, and that's exactly why that limitation is listed rather than
+assumed away. Three bugs at the same boundary in a row is a real pattern,
+not bad luck: this is the one area of the whole pipeline where real
+firmware behavior can't be simulated at all, so it should be expected to
+keep surfacing things a little longer than everywhere else already
+hardened by Tiers 1-4.
 
 Those still need a real VM boot. Tier 4 is built to catch the large
 majority of what's failed so far before spending the time on that boot -

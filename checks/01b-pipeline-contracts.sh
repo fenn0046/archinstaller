@@ -119,7 +119,32 @@ for consumer in consumers:
             f"        config with an unreplaced placeholder in it.",
         )
 
-# --- 6. The ESP partition carries the flag GRUB's UEFI path actually needs
+# --- 6. Both installer scripts eject the boot media before their reboot --
+# Found on a real VM boot: with the ISO still attached as a virtual
+# optical drive, most firmware boot orders put the CD-ROM ahead of the
+# hard disk, so the post-archinstall reboot went straight back into the
+# live medium instead of the disk just installed - which then re-ran the
+# zero-confirmation installer against the same disk a second time. Fixed
+# by ejecting the optical drive right before each script's own reboot;
+# guarded here so a future edit to either script can't silently drop it.
+for installer in (
+    "bootstrap/detect-disk-and-install.sh",
+    "iso/overlay/airootfs/root/archproject-bootstrap/auto-install.sh",
+):
+    text = (REPO / installer).read_text()
+    eject_pos = text.find("eject ")
+    reboot_pos = text.rfind("\nreboot")
+    check(
+        eject_pos != -1 and reboot_pos != -1 and eject_pos < reboot_pos,
+        f"{installer} doesn't eject the boot media before its final "
+        f"reboot.\n"
+        f"        Without it, a VM with the ISO still attached as a virtual\n"
+        f"        optical drive will likely boot back into this live medium\n"
+        f"        instead of the just-installed disk, and re-run the\n"
+        f"        zero-confirmation installer against it a second time.",
+    )
+
+# --- 7. The ESP partition carries the flag GRUB's UEFI path actually needs
 # Found on a real VM boot, past every other tier: archinstall's
 # _add_grub_bootloader() needs get_efi_partition(), which filters on
 # PartitionFlag.ESP specifically - a distinct flag from PartitionFlag.BOOT,
@@ -167,6 +192,7 @@ print(f"  - first-boot unit guarded by ConditionPathExists=!{MARKER}")
 print(f"  - roles/finalize writes {MARKER}")
 print("  - no reboot module used with a local connection")
 print("  - disk placeholders in sync across all 3 consumers")
+print("  - both installer scripts eject boot media before rebooting")
 print("  - /boot partition carries both 'boot' and 'esp' flags")
 print("")
 print("TIER 1b: PASSED")
