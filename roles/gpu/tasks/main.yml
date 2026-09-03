@@ -69,10 +69,32 @@
     state: present
   when: gpu_vendor == 'vmware'
 
+# Found by inspection, not a VM boot: this package was installed but never
+# enabled anywhere, unlike the virtio path just above. Without vmtoolsd,
+# none of open-vm-tools' actual guest integration (clipboard, time sync,
+# resolution auto-fit) turns on - vmware-vmblock-fuse is needed separately,
+# specifically for host/guest drag-and-drop and copy-paste file transfer.
+- name: Enable open-vm-tools services
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - vmtoolsd.service
+    - vmware-vmblock-fuse.service
+  when: gpu_vendor == 'vmware'
+
 - name: Install VirtualBox guest stack
   pacman:
     name: [mesa, virtualbox-guest-utils]
     state: present
+  when: gpu_vendor == 'virtualbox'
+
+- name: Enable VirtualBox guest service
+  systemd:
+    name: vboxservice.service
+    enabled: true
+    state: started
   when: gpu_vendor == 'virtualbox'
 
 - name: Warn on unrecognized GPU
