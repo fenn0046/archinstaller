@@ -59,55 +59,18 @@ if (-not ($machineState | Where-Object { $_.Running })) {
     podman machine start
 }
 
-$containerScript = @'
-set -euo pipefail
-
-# Read the password from stdin, never argv - argv is visible to any other
-# process via ps. Done first, before anything else can consume stdin.
-read -r ARCHPROJECT_PASSWORD
-# PowerShell terminates piped stdin with CRLF; a surviving \r would silently
-# become part of the password and lock you out of the installed system.
-ARCHPROJECT_PASSWORD="${ARCHPROJECT_PASSWORD%$'\r'}"
-
-# -Syu, not -Sy --needed: the archlinux:latest base image's own packages
-# (glibc etc.) can lag behind what freshly-pulled packages actually need,
-# causing GLIBC version mismatches otherwise.
-pacman -Syu --noconfirm --needed archiso python archlinux-keyring openssl
-
-cp -r /usr/share/archiso/configs/releng /tmp/profile
-cp -r /repo/iso/overlay/airootfs/. /tmp/profile/airootfs/
-cat /repo/iso/overlay-packages.x86_64 >> /tmp/profile/packages.x86_64
-
-# Generated into the build profile only - never written back into /repo.
-CREDS_DIR=/tmp/profile/airootfs/root/archproject-bootstrap
-mkdir -p "$CREDS_DIR"
-HASH=$(printf '%s' "$ARCHPROJECT_PASSWORD" | openssl passwd -6 -stdin)
-unset ARCHPROJECT_PASSWORD
-cat > "$CREDS_DIR/user_credentials.json" <<CREDS_EOF
-{
-  "users": [
-    { "sudo": true, "username": "archuser", "enc_password": "$HASH" }
-  ],
-  "root_enc_password": "$HASH"
-}
-CREDS_EOF
-chmod 600 "$CREDS_DIR/user_credentials.json"
-
-sed -i 's/iso_name="archlinux"/iso_name="archproject"/' /tmp/profile/profiledef.sh
-cat >> /tmp/profile/profiledef.sh <<'PERM_EOF'
-file_permissions+=( ["/root/archproject-bootstrap/auto-install.sh"]="0:0:755" )
-file_permissions+=( ["/root/archproject-bootstrap/user_credentials.json"]="0:0:600" )
-PERM_EOF
-
-python3 /repo/iso/generate-config.py
-
-mkarchiso -v -w /tmp/work -o /repo/iso/out /tmp/profile
-'@
-
+# The actual build steps live in iso/container-build.sh, invoked below by
+# path - NOT embedded here as a string handed to `bash -c`. Windows
+# PowerShell corrupts double-quote characters when it re-serializes a
+# multi-line string argument for a native process's command line, which
+# silently broke both the JSON credentials heredoc (every quote vanished,
+# producing invalid JSON) and the iso_name rename sed (also silently a
+# no-op) when this used to be inline. A plain file path has no embedded
+# quoting for PowerShell to mangle.
 $plainPassword | podman run -i --rm --privileged `
     -v "${RepoRoot}:/repo" `
     -w /repo `
-    archlinux:latest bash -c $containerScript
+    archlinux:latest bash /repo/iso/container-build.sh
 
 $buildExit = $LASTEXITCODE
 Remove-Variable plainPassword, confirmPassword -ErrorAction SilentlyContinue
