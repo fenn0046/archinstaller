@@ -78,9 +78,18 @@ archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
 # firmware genuinely has nothing bootable there on the next power-on.
 # No-op if there's no optical drive at all (e.g. booted from USB instead).
 echo "Ejecting installation media so the reboot below boots the installed disk, not this live ISO again..."
+EJECTED_ANY=0
 for cdrom in /dev/sr*; do
-  [ -e "$cdrom" ] && eject "$cdrom" 2>/dev/null
+  if [ -e "$cdrom" ]; then
+    if eject "$cdrom"; then
+      echo "Ejected $cdrom"
+      EJECTED_ANY=1
+    else
+      echo "WARNING: eject $cdrom failed (rc=$?) - the reboot below may boot back into this live medium. See VM's optical drive settings (e.g. VMware requires the drive not be forced to stay connected)." >&2
+    fi
+  fi
 done
+[ "$EJECTED_ANY" -eq 1 ] || echo "WARNING: no /dev/sr* device found to eject - nothing was ejected." >&2
 true  # don't let a harmless eject failure abort after a successful install
 
 # --silent explicitly skips archinstall's own "reboot now?" prompt (it just
