@@ -69,31 +69,28 @@ sed -e "s#__DISK_DEVICE__#${TARGET_DISK}#" \
 
 archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
 
-# Without this, a VM whose virtual optical drive still has the Arch ISO
-# attached will very likely boot straight back into the live medium
-# instead of the disk just installed to - most firmware boot orders put
-# the CD-ROM ahead of the hard disk. `eject` (part of util-linux, always
-# present) sends a real eject command to the virtual drive - VMware,
-# VirtualBox, and QEMU all release/disconnect the ISO in response, so the
-# firmware genuinely has nothing bootable there on the next power-on.
-# No-op if there's no optical drive at all (e.g. booted from USB instead).
-echo "Ejecting installation media so the reboot below boots the installed disk, not this live ISO again..."
-EJECTED_ANY=0
-for cdrom in /dev/sr*; do
-  if [ -e "$cdrom" ]; then
-    if eject "$cdrom"; then
-      echo "Ejected $cdrom"
-      EJECTED_ANY=1
-    else
-      echo "WARNING: eject $cdrom failed (rc=$?) - the reboot below may boot back into this live medium. See VM's optical drive settings (e.g. VMware requires the drive not be forced to stay connected)." >&2
-    fi
-  fi
-done
-[ "$EJECTED_ANY" -eq 1 ] || echo "WARNING: no /dev/sr* device found to eject - nothing was ejected." >&2
-true  # don't let a harmless eject failure abort after a successful install
-
-# --silent explicitly skips archinstall's own "reboot now?" prompt (it just
-# returns control to this shell when done), so we do it ourselves.
-echo "Install complete. Rebooting in 5 seconds..."
-sleep 5
+# Deliberately NOT ejecting from in here. archiso's releng profile doesn't
+# use copytoram: the live system reads from the disc for its entire life,
+# so `eject` either fails ("device is busy") or succeeds at the SCSI level
+# and yanks the root filesystem out from under this script - after which
+# even `reboot` can't be exec'd. A human disconnecting the ISO host-side
+# is reliable and can't break the running system, so ask instead.
+echo ""
+echo "==================================================================="
+echo " INSTALL COMPLETE"
+echo "==================================================================="
+echo ""
+echo " Disconnect the installer ISO NOW, before rebooting - otherwise the"
+echo " firmware will likely boot back into the live medium instead of the"
+echo " disk just installed to."
+echo ""
+echo "   VMware:       VM > Removable Devices > CD/DVD > Disconnect"
+echo "                 (also untick 'Connect at power on' in VM settings)"
+echo "   VirtualBox:   Devices > Optical Drives > Remove disk from drive"
+echo "   virt-manager: detach the CDROM device"
+echo ""
+printf " Once the ISO is disconnected, press Enter to reboot... "
+read -r _ || true
+echo ""
+echo "Rebooting..."
 reboot

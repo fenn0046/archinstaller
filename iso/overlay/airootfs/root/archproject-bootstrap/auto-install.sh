@@ -39,6 +39,53 @@ if [ "${#CANDIDATES[@]}" -ne 1 ]; then
 fi
 
 TARGET_DISK="${CANDIDATES[0]}"
+
+# --- Safety: never silently re-wipe an existing install -------------------
+# Learned the destructive way. With the ISO still attached, the firmware
+# boots this live medium again, .automated_script.sh fires unconditionally
+# on tty1, and this script would happily wipe a perfectly good fresh
+# install a second time. That happened, and the half-finished second wipe
+# left the disk unrecoverable - the whole install had to be redone.
+#
+# So: if the target already carries a bootloader at the UEFI fallback path
+# we install to, treat it as an existing install and refuse. Set
+# ARCHPROJECT_FORCE_WIPE=1 to deliberately override.
+looks_already_installed() {
+  local disk="$1" part1 tmpmnt rc=1
+  part1=$(lsblk -pnro NAME "$disk" 2>/dev/null | sed -n '2p')
+  [ -n "$part1" ] || return 1
+  [ "$(lsblk -dnro FSTYPE "$part1" 2>/dev/null)" = "vfat" ] || return 1
+  tmpmnt=$(mktemp -d)
+  if mount -o ro "$part1" "$tmpmnt" 2>/dev/null; then
+    [ -f "$tmpmnt/EFI/BOOT/BOOTX64.EFI" ] && rc=0
+    umount "$tmpmnt" 2>/dev/null || true
+  fi
+  rmdir "$tmpmnt" 2>/dev/null || true
+  return $rc
+}
+
+if [ "${ARCHPROJECT_FORCE_WIPE:-0}" != "1" ] && looks_already_installed "$TARGET_DISK"; then
+  echo "" >&2
+  echo "===================================================================" >&2
+  echo " REFUSING TO WIPE - $TARGET_DISK ALREADY HAS AN INSTALL" >&2
+  echo "===================================================================" >&2
+  echo "" >&2
+  echo " Found a bootloader at EFI/BOOT/BOOTX64.EFI on $TARGET_DISK, so this" >&2
+  echo " disk was almost certainly installed to already - most likely by a" >&2
+  echo " previous run of this very ISO." >&2
+  echo "" >&2
+  echo " You are seeing this because the machine booted the installer ISO" >&2
+  echo " again instead of the installed disk. Fix that, don't re-install:" >&2
+  echo "   1. Power off." >&2
+  echo "   2. Disconnect the ISO from the VM's optical drive." >&2
+  echo "   3. Power on - it should boot the installed system." >&2
+  echo "" >&2
+  echo " To deliberately wipe and reinstall anyway, run:" >&2
+  echo "   ARCHPROJECT_FORCE_WIPE=1 /root/archproject-bootstrap/auto-install.sh" >&2
+  echo "" >&2
+  exit 1
+fi
+
 echo "[archproject] auto-installing to $TARGET_DISK (no confirmation - unattended ISO)"
 
 # The installed archinstall's Unit enum has no "Percent" - the root
@@ -60,32 +107,40 @@ sed -e "s#__DISK_DEVICE__#${TARGET_DISK}#" \
 
 archinstall --config "$OUT_CONFIG" --creds "$CREDS" --silent
 
-# Without this, a VM whose virtual optical drive still has this ISO
-# attached will very likely boot straight back into THIS live medium
-# instead of the disk we just installed to - most firmware boot orders
-# put the CD-ROM ahead of the hard disk, and this ISO's own
-# .automated_script.sh hook fires unconditionally on tty1 login with no
-# confirmation, so it would find the one disk again and start wiping it a
-# second time. `eject` (part of util-linux, always present on a `base`
-# system) sends a real eject command to the virtual drive - VMware,
-# VirtualBox, and QEMU all release/disconnect the ISO in response, so the
-# firmware genuinely has nothing bootable there on the next power-on.
-# No-op if there's no optical drive at all (e.g. booted from USB instead).
-echo "[archproject] ejecting installation media so the reboot below boots the installed disk, not this live ISO again..."
-EJECTED_ANY=0
-for cdrom in /dev/sr*; do
-  if [ -e "$cdrom" ]; then
-    if eject "$cdrom"; then
-      echo "[archproject] ejected $cdrom"
-      EJECTED_ANY=1
-    else
-      echo "[archproject] WARNING: eject $cdrom failed (rc=$?) - the reboot below may boot back into this live medium. See VM's optical drive settings (e.g. VMware requires the drive not be forced to stay connected)." >&2
-    fi
-  fi
-done
-[ "$EJECTED_ANY" -eq 1 ] || echo "[archproject] WARNING: no /dev/sr* device found to eject - nothing was ejected." >&2
-true  # don't let a harmless eject failure abort after a successful install
-
-echo "[archproject] install complete, rebooting in 5 seconds..."
-sleep 5
+# Deliberately NOT ejecting from in here, despite the obvious appeal.
+# archiso's releng profile does not use copytoram: this live system reads
+# from the disc for its entire life. So `eject` either fails outright
+# ("device is busy", because the kernel holds the squashfs open) or, worse,
+# succeeds at the SCSI level and pulls the root filesystem out from under
+# the running script - after which even `reboot` can't be exec'd, and the
+# install just sits there having apparently done nothing. That is exactly
+# what an earlier version of this script did.
+#
+# A human disconnecting the ISO host-side is reliable, instant, and can't
+# break the running system. So: stop and ask.
+echo ""
+echo "==================================================================="
+echo " INSTALL COMPLETE"
+echo "==================================================================="
+echo ""
+echo " Disconnect the installer ISO NOW, before rebooting - otherwise the"
+echo " firmware will boot straight back into this live medium instead of"
+echo " the disk that was just installed to."
+echo ""
+echo "   VMware:       VM > Removable Devices > CD/DVD > Disconnect"
+echo "                 (also untick 'Connect at power on' in VM settings)"
+echo "   VirtualBox:   Devices > Optical Drives > Remove disk from drive"
+echo "   virt-manager: detach the CDROM device"
+echo ""
+echo " (This can't be done reliably from inside here: the live system is"
+echo "  running FROM that disc, so the kernel holds it busy.)"
+echo ""
+echo " If you reboot with the ISO still attached, nothing is destroyed -"
+echo " this installer now detects the existing install and refuses to wipe"
+echo " it - but you'll just land back here instead of in your new system."
+echo ""
+printf " Once the ISO is disconnected, press Enter to reboot... "
+read -r _ || true
+echo ""
+echo "[archproject] rebooting..."
 reboot

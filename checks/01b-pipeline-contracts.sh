@@ -119,30 +119,57 @@ for consumer in consumers:
             f"        config with an unreplaced placeholder in it.",
         )
 
-# --- 6. Both installer scripts eject the boot media before their reboot --
-# Found on a real VM boot: with the ISO still attached as a virtual
-# optical drive, most firmware boot orders put the CD-ROM ahead of the
-# hard disk, so the post-archinstall reboot went straight back into the
-# live medium instead of the disk just installed - which then re-ran the
-# zero-confirmation installer against the same disk a second time. Fixed
-# by ejecting the optical drive right before each script's own reboot;
-# guarded here so a future edit to either script can't silently drop it.
+# --- 6. Both installer scripts pause for media removal before rebooting --
+# The original version of this check asserted the scripts *ejected* the
+# disc themselves. That was wrong and actively harmful: archiso's releng
+# profile has no copytoram, so the live system reads from the disc for its
+# whole life - `eject` either fails ("device is busy") or succeeds at the
+# SCSI level and pulls the root filesystem out from under the script, after
+# which even `reboot` can't be exec'd. Observed exactly that: an install
+# that finished but never rebooted. Replaced with an explicit prompt, which
+# is what a human can act on reliably. Asserted here so the prompt can't be
+# silently dropped and turn back into a silent reboot-into-the-ISO loop.
 for installer in (
     "bootstrap/detect-disk-and-install.sh",
     "iso/overlay/airootfs/root/archproject-bootstrap/auto-install.sh",
 ):
     text = (REPO / installer).read_text()
-    eject_pos = text.find("eject ")
     reboot_pos = text.rfind("\nreboot")
+    prompt_pos = text.rfind("read -r _")
     check(
-        eject_pos != -1 and reboot_pos != -1 and eject_pos < reboot_pos,
-        f"{installer} doesn't eject the boot media before its final "
-        f"reboot.\n"
-        f"        Without it, a VM with the ISO still attached as a virtual\n"
-        f"        optical drive will likely boot back into this live medium\n"
-        f"        instead of the just-installed disk, and re-run the\n"
-        f"        zero-confirmation installer against it a second time.",
+        prompt_pos != -1 and reboot_pos != -1 and prompt_pos < reboot_pos,
+        f"{installer} doesn't pause for the user to disconnect the "
+        f"installer ISO before its final reboot.\n"
+        f"        Without that pause, a VM with the ISO still attached boots\n"
+        f"        back into the live medium instead of the just-installed\n"
+        f"        disk. Do NOT 'fix' this by ejecting from inside the script:\n"
+        f"        the live system runs from that disc, so ejecting breaks the\n"
+        f"        running system (this was tried - the install finished but\n"
+        f"        never rebooted).",
     )
+    check(
+        "eject " not in text,
+        f"{installer} calls `eject`. The live system runs from the disc\n"
+        f"        (archiso releng has no copytoram), so ejecting it either\n"
+        f"        fails as busy or breaks the running system mid-script.\n"
+        f"        Prompt the user to disconnect it host-side instead.",
+    )
+
+# --- 6b. The ISO installer refuses to re-wipe an existing install --------
+# A re-boot into the live medium re-ran the zero-confirmation installer
+# against a freshly-installed disk and destroyed it. The installer must
+# detect an existing install and refuse rather than silently wipe.
+auto_install = (
+    REPO / "iso/overlay/airootfs/root/archproject-bootstrap/auto-install.sh"
+).read_text()
+check(
+    "looks_already_installed" in auto_install
+    and "BOOTX64.EFI" in auto_install,
+    "iso/.../auto-install.sh no longer refuses to wipe a disk that already\n"
+    "        has an install. This ISO runs a zero-confirmation installer on\n"
+    "        every boot, so without that guard, booting the ISO again against\n"
+    "        an installed disk destroys it (this happened).",
+)
 
 # --- 7. The ESP partition carries the flag GRUB's UEFI path actually needs
 # Found on a real VM boot, past every other tier: archinstall's
@@ -192,7 +219,8 @@ print(f"  - first-boot unit guarded by ConditionPathExists=!{MARKER}")
 print(f"  - roles/finalize writes {MARKER}")
 print("  - no reboot module used with a local connection")
 print("  - disk placeholders in sync across all 3 consumers")
-print("  - both installer scripts eject boot media before rebooting")
+print("  - both installer scripts pause for media removal before rebooting")
+print("  - ISO installer refuses to re-wipe an already-installed disk")
 print("  - /boot partition carries both 'boot' and 'esp' flags")
 print("")
 print("TIER 1b: PASSED")
