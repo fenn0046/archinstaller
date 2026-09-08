@@ -20,31 +20,77 @@
             "obj_id": "6e910b84-af6d-44e0-ad33-eafa1cf98dc4",
             "status": "create",
             "type": "primary",
-            "start": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": 1 },
-            "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": 1024 },
+            "start": {
+              "sector_size": {
+                "value": 512,
+                "unit": "B"
+              },
+              "unit": "MiB",
+              "value": 1
+            },
+            "size": {
+              "sector_size": {
+                "value": 512,
+                "unit": "B"
+              },
+              "unit": "MiB",
+              "value": 1024
+            },
             "fs_type": "fat32",
             "mountpoint": "/boot",
             "dev_path": null,
             "mount_options": [],
-            "flags": ["boot", "esp"],
+            "flags": [
+              "boot",
+              "esp"
+            ],
             "btrfs": []
           },
           {
             "obj_id": "90260684-74fb-4290-9cc2-9c18d3d0c013",
             "status": "create",
             "type": "primary",
-            "start": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": 1025 },
-            "size": { "sector_size": { "value": 512, "unit": "B" },"unit": "MiB", "value": "__ROOT_SIZE_MIB__" },
+            "start": {
+              "sector_size": {
+                "value": 512,
+                "unit": "B"
+              },
+              "unit": "MiB",
+              "value": 1025
+            },
+            "size": {
+              "sector_size": {
+                "value": 512,
+                "unit": "B"
+              },
+              "unit": "MiB",
+              "value": "__ROOT_SIZE_MIB__"
+            },
             "fs_type": "btrfs",
             "mountpoint": null,
             "dev_path": null,
-            "mount_options": ["compress=zstd", "noatime"],
+            "mount_options": [
+              "compress=zstd",
+              "noatime"
+            ],
             "flags": [],
             "btrfs": [
-              { "name": "@", "mountpoint": "/" },
-              { "name": "@home", "mountpoint": "/home" },
-              { "name": "@log", "mountpoint": "/var/log" },
-              { "name": "@pkg", "mountpoint": "/var/cache/pacman/pkg" }
+              {
+                "name": "@",
+                "mountpoint": "/"
+              },
+              {
+                "name": "@home",
+                "mountpoint": "/home"
+              },
+              {
+                "name": "@log",
+                "mountpoint": "/var/log"
+              },
+              {
+                "name": "@pkg",
+                "mountpoint": "/var/cache/pacman/pkg"
+              }
             ]
           }
         ]
@@ -52,7 +98,9 @@
     ]
   },
   "hostname": "archbox",
-  "kernels": ["linux"],
+  "kernels": [
+    "linux"
+  ],
   "locale_config": {
     "kb_layout": "us",
     "sys_enc": "UTF-8",
@@ -64,7 +112,10 @@
   "no_pkg_lookups": false,
   "ntp": true,
   "offline": false,
-  "packages": ["ansible", "git"],
+  "packages": [
+    "ansible",
+    "git"
+  ],
   "pacman_config": {
     "color": false,
     "parallel_downloads": 5
@@ -86,6 +137,6 @@
   "timezone": "America/Toronto",
   "version": "2.8.6",
   "custom_commands": [
-    "cat > /usr/local/bin/arch-project-bootstrap.sh << 'BOOTSTRAP_EOF'\n#!/bin/bash\nset -euo pipefail\nexec > >(tee -a /var/log/arch-project-bootstrap.log) 2>&1\necho \"[arch-project] first-boot bootstrap starting\"\nfor i in $(seq 1 30); do\n  curl -fsS --max-time 5 https://github.com >/dev/null 2>&1 && break\n  sleep 5\ndone\nREPO_URL=\"https://github.com/fenn0046/archinstaller.git\"\nDEST=/home/archuser/arch-project\nif [ -d \"$DEST/.git\" ]; then\n  sudo -u archuser git -C \"$DEST\" pull\nelse\n  sudo -u archuser git clone \"$REPO_URL\" \"$DEST\"\nfi\ncd \"$DEST\"\nansible-playbook site.yml\nsystemctl disable arch-project-bootstrap.service\necho \"[arch-project] bootstrap complete\"\nBOOTSTRAP_EOF\nchmod +x /usr/local/bin/arch-project-bootstrap.sh\ncat > /etc/systemd/system/arch-project-bootstrap.service << 'UNIT_EOF'\n[Unit]\nDescription=arch-project first-boot bootstrap\nAfter=network-online.target\nWants=network-online.target\nConditionPathExists=!/var/lib/arch-project/provisioned\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/arch-project-bootstrap.sh\nRemainAfterExit=yes\nStandardOutput=journal+console\nStandardError=journal+console\n\n[Install]\nWantedBy=multi-user.target\nUNIT_EOF\nsystemctl enable arch-project-bootstrap.service"
+    "cat > /usr/local/bin/arch-project-bootstrap.sh << 'BOOTSTRAP_EOF'\n#!/bin/bash\nset -euo pipefail\nexec > >(tee -a /var/log/arch-project-bootstrap.log) 2>&1\necho \"[arch-project] first-boot bootstrap starting\"\nfor i in $(seq 1 30); do\n  curl -fsS --max-time 5 https://github.com >/dev/null 2>&1 && break\n  sleep 5\ndone\nREPO_URL=\"https://github.com/fenn0046/archinstaller.git\"\nDEST=/home/archuser/arch-project\nif [ -d \"$DEST/.git\" ]; then\n  sudo -u archuser git -C \"$DEST\" pull\nelse\n  sudo -u archuser git clone \"$REPO_URL\" \"$DEST\"\nfi\ncd \"$DEST\"\nansible-playbook site.yml\nsystemctl disable arch-project-bootstrap.service\necho \"[arch-project] bootstrap complete\"\nBOOTSTRAP_EOF\nchmod +x /usr/local/bin/arch-project-bootstrap.sh\ncat > /etc/systemd/system/arch-project-bootstrap.service << 'UNIT_EOF'\n[Unit]\nDescription=arch-project first-boot bootstrap\nAfter=network-online.target\nWants=network-online.target\nConditionPathExists=!/var/lib/arch-project/provisioned\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/arch-project-bootstrap.sh\nRemainAfterExit=yes\nStandardOutput=journal+console\nStandardError=journal+console\n\n[Install]\nWantedBy=multi-user.target\nUNIT_EOF\nsystemctl enable arch-project-bootstrap.service\n# VMware's EFI firmware does not auto-scan the UEFI fallback path\n# (\\EFI\\BOOT\\BOOTX64.EFI) on a FIXED disk - it only boots what's\n# registered in NVRAM. bootloader_config.removable=true guarantees the\n# fallback file exists (which most other firmware boots happily), but it\n# makes grub-install skip efibootmgr entirely, so on VMware you end up\n# with a perfectly valid, completely unbootable disk. Verified directly:\n# correct GPT ESP GUID, valid PE32+ BOOTX64.EFI, clean FAT32 - and the\n# firmware still reported 'No compatible bootloader found'.\n# So register the entry explicitly here. Non-fatal: if NVRAM writes fail\n# (which is what started this whole detour), the fallback file is still\n# there and other firmware still boots fine.\nESP_DEV=$(findmnt -no SOURCE /boot || true)\nif [ -n \"$ESP_DEV\" ]; then\n  ESP_NAME=$(basename \"$ESP_DEV\")\n  ESP_DISK=$(lsblk -no PKNAME \"$ESP_DEV\" 2>/dev/null | head -1)\n  ESP_PART=$(cat \"/sys/class/block/$ESP_NAME/partition\" 2>/dev/null || echo 1)\n  if [ -n \"$ESP_DISK\" ]; then\n    efibootmgr --create --disk \"/dev/$ESP_DISK\" --part \"$ESP_PART\" --loader '\\EFI\\BOOT\\BOOTX64.EFI' --label 'Arch Linux' || echo '[arch-project] WARNING: efibootmgr failed; relying on the UEFI fallback path instead.' >&2\n  fi\nfi"
   ]
 }
