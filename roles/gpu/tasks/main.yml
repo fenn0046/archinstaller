@@ -84,6 +84,56 @@
     - vmware-vmblock-fuse.service
   when: gpu_vendor == 'vmware'
 
+# Arch's open-vm-tools ships /usr/bin/VGAuthService but - unlike Debian and
+# Fedora - no systemd unit to start it, so nothing ever runs it. Without it,
+# VMware "guest operations" are crippled: `vmrun runProgramInGuest` and
+# `copyFileFromGuestToHost` both fail with a misleading "A file was not
+# found", while `listProcessesInGuest` keeps working (it goes through
+# vmtoolsd), which makes it look like an auth or path problem rather than a
+# missing service. Found exactly that way on a real VM.
+#
+# Worth having: with VGAuth running, the host can copy files in and out of
+# the guest directly via vmrun - no shared folders, no SSH, no network
+# config - which is a far better transfer path than drag-and-drop.
+#
+# Type=simple is correct: VGAuthService with no arguments stays in the
+# foreground (verified against the real binary; it prints "INIT SERVICE"
+# and keeps running rather than daemonizing).
+- name: Install a systemd unit for VGAuthService (Arch ships the binary but no unit)
+  copy:
+    dest: /etc/systemd/system/vgauthd.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=VMware Guest Authentication Service (open-vm-tools)
+      Documentation=https://github.com/vmware/open-vm-tools
+      ConditionVirtualization=vmware
+      After=vmtoolsd.service
+      Requires=vmtoolsd.service
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/VGAuthService
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  when: gpu_vendor == 'vmware'
+  register: vgauth_unit
+
+- name: Reload systemd so the new VGAuthService unit is picked up
+  systemd:
+    daemon_reload: true
+  when: gpu_vendor == 'vmware' and vgauth_unit.changed
+
+- name: Enable VGAuthService
+  systemd:
+    name: vgauthd.service
+    enabled: true
+    state: started
+  when: gpu_vendor == 'vmware'
+
 - name: Install VirtualBox guest stack
   pacman:
     name: [mesa, virtualbox-guest-utils]
