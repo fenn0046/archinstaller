@@ -45,5 +45,25 @@
   when: kernel_lts_fallback | bool
   notify: regenerate grub config
 
+# Installing linux-lts silently inverts the hedge. grub-mkconfig picks the
+# top-level "Arch Linux" entry by version-sorting the vmlinuz files, and
+# "vmlinuz-linux-lts" sorts ahead of "vmlinuz-linux" - so the LTS kernel
+# becomes the DEFAULT and the cutting-edge one gets demoted into the
+# "Advanced options" submenu. Exactly backwards from the intent above, and
+# silent: everything boots fine, just on the wrong kernel. Confirmed on the
+# first fully-working VM, which came up on 6.18.50-lts instead of 7.2.3.
+#
+# GRUB_TOP_LEVEL (honoured by Arch's /etc/grub.d/10_linux) pins which kernel
+# owns the default entry. LTS stays in the submenu as the fallback, which is
+# the whole point of installing it.
+- name: Pin the default GRUB entry to the mainline kernel, not LTS
+  lineinfile:
+    path: /etc/default/grub
+    regexp: '^#?GRUB_TOP_LEVEL='
+    line: 'GRUB_TOP_LEVEL="/boot/vmlinuz-linux"'
+    state: present
+  when: kernel_lts_fallback | bool and bootloader == 'grub'
+  notify: regenerate grub config
+
 - name: Flush handlers so GRUB picks up the new kernel entry now
   meta: flush_handlers
